@@ -1,1 +1,10 @@
 project_id = "unryliaiqdttpixikrsn"
+
+[functions.create-order]
+verify_jwt = false
+
+[functions.validate-discount]
+verify_jwt = false
+
+[functions.bulk-operations]
+verify_jwt = false

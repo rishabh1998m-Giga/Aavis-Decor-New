@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, X, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -15,13 +15,17 @@ import {
 } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 export interface FilterState {
   colors: string[];
   sizes: string[];
+  fabric: string;
   priceRange: [number, number];
   sortBy: string;
+  inStockOnly: boolean;
 }
 
 interface ProductFiltersProps {
@@ -29,6 +33,7 @@ interface ProductFiltersProps {
   onFiltersChange: (filters: FilterState) => void;
   availableColors: string[];
   availableSizes: string[];
+  availableFabrics: string[];
   maxPrice: number;
   totalProducts: number;
 }
@@ -69,6 +74,7 @@ const FiltersContent = ({
   onFiltersChange,
   availableColors,
   availableSizes,
+  availableFabrics,
   maxPrice,
 }: Omit<ProductFiltersProps, "totalProducts">) => {
   const toggleColor = (color: string) => {
@@ -91,15 +97,10 @@ const FiltersContent = ({
       <FilterSection title="SORT BY">
         <div className="space-y-2">
           {sortOptions.map((option) => (
-            <label
-              key={option.value}
-              className="flex items-center gap-3 cursor-pointer group"
-            >
+            <label key={option.value} className="flex items-center gap-3 cursor-pointer group">
               <Checkbox
                 checked={filters.sortBy === option.value}
-                onCheckedChange={() =>
-                  onFiltersChange({ ...filters, sortBy: option.value })
-                }
+                onCheckedChange={() => onFiltersChange({ ...filters, sortBy: option.value })}
               />
               <span className="text-sm text-foreground/70 group-hover:text-foreground">
                 {option.label}
@@ -108,6 +109,43 @@ const FiltersContent = ({
           ))}
         </div>
       </FilterSection>
+
+      {/* Availability */}
+      <FilterSection title="AVAILABILITY">
+        <div className="flex items-center gap-3">
+          <Switch
+            checked={filters.inStockOnly}
+            onCheckedChange={(checked) => onFiltersChange({ ...filters, inStockOnly: checked })}
+          />
+          <Label className="text-sm text-foreground/70">In stock only</Label>
+        </div>
+      </FilterSection>
+
+      {/* Fabric */}
+      {availableFabrics.length > 0 && (
+        <FilterSection title="FABRIC">
+          <div className="space-y-2">
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <Checkbox
+                checked={filters.fabric === ""}
+                onCheckedChange={() => onFiltersChange({ ...filters, fabric: "" })}
+              />
+              <span className="text-sm text-foreground/70 group-hover:text-foreground">All</span>
+            </label>
+            {availableFabrics.map((fab) => (
+              <label key={fab} className="flex items-center gap-3 cursor-pointer group">
+                <Checkbox
+                  checked={filters.fabric === fab}
+                  onCheckedChange={() =>
+                    onFiltersChange({ ...filters, fabric: filters.fabric === fab ? "" : fab })
+                  }
+                />
+                <span className="text-sm text-foreground/70 group-hover:text-foreground">{fab}</span>
+              </label>
+            ))}
+          </div>
+        </FilterSection>
+      )}
 
       {/* Colors */}
       {availableColors.length > 0 && (
@@ -162,10 +200,7 @@ const FiltersContent = ({
             max={maxPrice}
             step={100}
             onValueChange={(value) =>
-              onFiltersChange({
-                ...filters,
-                priceRange: value as [number, number],
-              })
+              onFiltersChange({ ...filters, priceRange: value as [number, number] })
             }
             className="mt-2"
           />
@@ -181,18 +216,22 @@ const FiltersContent = ({
 
 const ProductFilters = (props: ProductFiltersProps) => {
   const { filters, onFiltersChange, totalProducts } = props;
-  
+
   const activeFilterCount =
     filters.colors.length +
     filters.sizes.length +
+    (filters.fabric ? 1 : 0) +
+    (filters.inStockOnly ? 1 : 0) +
     (filters.priceRange[0] > 0 || filters.priceRange[1] < props.maxPrice ? 1 : 0);
 
   const clearFilters = () => {
     onFiltersChange({
       colors: [],
       sizes: [],
+      fabric: "",
       priceRange: [0, props.maxPrice],
       sortBy: "newest",
+      inStockOnly: false,
     });
   };
 
@@ -202,14 +241,9 @@ const ProductFilters = (props: ProductFiltersProps) => {
       <aside className="hidden lg:block w-64 flex-shrink-0">
         <div className="sticky top-32">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xs tracking-widest text-foreground">
-              FILTER ({totalProducts})
-            </h2>
+            <h2 className="text-xs tracking-widest text-foreground">FILTER ({totalProducts})</h2>
             {activeFilterCount > 0 && (
-              <button
-                onClick={clearFilters}
-                className="text-xs text-foreground/50 hover:text-foreground underline"
-              >
+              <button onClick={clearFilters} className="text-xs text-foreground/50 hover:text-foreground underline">
                 Clear all
               </button>
             )}
@@ -238,10 +272,7 @@ const ProductFilters = (props: ProductFiltersProps) => {
               <SheetTitle className="flex items-center justify-between">
                 <span>Filter & Sort</span>
                 {activeFilterCount > 0 && (
-                  <button
-                    onClick={clearFilters}
-                    className="text-xs font-normal text-foreground/50 hover:text-foreground"
-                  >
+                  <button onClick={clearFilters} className="text-xs font-normal text-foreground/50 hover:text-foreground">
                     Clear all
                   </button>
                 )}

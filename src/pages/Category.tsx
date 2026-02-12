@@ -1,105 +1,72 @@
 import { useState, useMemo } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import StoreLayout from "@/components/layout/StoreLayout";
 import ProductGrid from "@/components/products/ProductGrid";
 import ProductFilters, { FilterState } from "@/components/products/ProductFilters";
-import { useProducts, useCategories } from "@/hooks/useProducts";
-import { ChevronRight } from "lucide-react";
+import { usePaginatedProducts, useCategories } from "@/hooks/useProducts";
+import { Button } from "@/components/ui/button";
+import { ChevronRight, ChevronLeft } from "lucide-react";
+
+const PAGE_SIZE = 20;
 
 const Category = () => {
   const { slug } = useParams<{ slug: string }>();
-  const { data: products = [], isLoading } = useProducts(slug);
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: categories = [] } = useCategories();
-  
   const category = categories.find((c) => c.slug === slug);
 
-  // Extract available filter options from products
+  const page = Number(searchParams.get("page") || "1");
+
+  const [filters, setFilters] = useState<FilterState>({
+    colors: [],
+    sizes: [],
+    fabric: "",
+    priceRange: [0, 50000],
+    sortBy: "newest",
+    inStockOnly: false,
+  });
+
+  const { data, isLoading } = usePaginatedProducts({
+    page,
+    pageSize: PAGE_SIZE,
+    categorySlug: slug,
+    sortBy: filters.sortBy,
+    colors: filters.colors.length > 0 ? filters.colors : undefined,
+    sizes: filters.sizes.length > 0 ? filters.sizes : undefined,
+    fabric: filters.fabric || undefined,
+    priceMin: filters.priceRange[0] > 0 ? filters.priceRange[0] : undefined,
+    priceMax: filters.priceRange[1] < 50000 ? filters.priceRange[1] : undefined,
+    inStockOnly: filters.inStockOnly || undefined,
+  });
+
+  const products = data?.products || [];
+  const totalPages = data?.totalPages || 1;
+  const totalCount = data?.totalCount || 0;
+
+  // Extract available filter options from loaded products
   const availableColors = useMemo(() => {
     const colors = new Set<string>();
-    products.forEach((p) => {
-      p.variants.forEach((v) => {
-        if (v.color) colors.add(v.color);
-      });
-    });
+    products.forEach((p) => p.variants.forEach((v) => { if (v.color) colors.add(v.color); }));
     return Array.from(colors);
   }, [products]);
 
   const availableSizes = useMemo(() => {
     const sizes = new Set<string>();
-    products.forEach((p) => {
-      p.variants.forEach((v) => {
-        if (v.size) sizes.add(v.size);
-      });
-    });
+    products.forEach((p) => p.variants.forEach((v) => { if (v.size) sizes.add(v.size); }));
     return Array.from(sizes);
   }, [products]);
 
-  const maxPrice = useMemo(() => {
-    if (products.length === 0) return 10000;
-    return Math.max(...products.map((p) => 
-      Math.max(p.basePrice, ...p.variants.map((v) => v.price))
-    ));
+  const availableFabrics = useMemo(() => {
+    const fabrics = new Set<string>();
+    products.forEach((p) => { if (p.fabric) fabrics.add(p.fabric); });
+    return Array.from(fabrics);
   }, [products]);
 
-  const [filters, setFilters] = useState<FilterState>({
-    colors: [],
-    sizes: [],
-    priceRange: [0, maxPrice],
-    sortBy: "newest",
-  });
-
-  // Apply filters
-  const filteredProducts = useMemo(() => {
-    let filtered = [...products];
-
-    // Color filter
-    if (filters.colors.length > 0) {
-      filtered = filtered.filter((p) =>
-        p.variants.some((v) => v.color && filters.colors.includes(v.color))
-      );
-    }
-
-    // Size filter
-    if (filters.sizes.length > 0) {
-      filtered = filtered.filter((p) =>
-        p.variants.some((v) => v.size && filters.sizes.includes(v.size))
-      );
-    }
-
-    // Price filter
-    filtered = filtered.filter((p) => {
-      const minPrice = Math.min(p.basePrice, ...p.variants.map((v) => v.price));
-      return minPrice >= filters.priceRange[0] && minPrice <= filters.priceRange[1];
-    });
-
-    // Sort
-    switch (filters.sortBy) {
-      case "price-low":
-        filtered.sort((a, b) => {
-          const aPrice = Math.min(a.basePrice, ...a.variants.map((v) => v.price));
-          const bPrice = Math.min(b.basePrice, ...b.variants.map((v) => v.price));
-          return aPrice - bPrice;
-        });
-        break;
-      case "price-high":
-        filtered.sort((a, b) => {
-          const aPrice = Math.min(a.basePrice, ...a.variants.map((v) => v.price));
-          const bPrice = Math.min(b.basePrice, ...b.variants.map((v) => v.price));
-          return bPrice - aPrice;
-        });
-        break;
-      case "name":
-        filtered.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      case "newest":
-      default:
-        filtered.sort((a, b) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-    }
-
-    return filtered;
-  }, [products, filters]);
+  const goToPage = (p: number) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("page", String(p));
+    setSearchParams(params);
+  };
 
   return (
     <StoreLayout>
@@ -107,9 +74,7 @@ const Category = () => {
         {/* Breadcrumb */}
         <div className="container mb-8">
           <nav className="flex items-center gap-2 text-xs text-foreground/50">
-            <Link to="/" className="hover:text-foreground transition-colors">
-              Home
-            </Link>
+            <Link to="/" className="hover:text-foreground transition-colors">Home</Link>
             <ChevronRight className="h-3 w-3" />
             <span className="text-foreground">{category?.name || slug}</span>
           </nav>
@@ -133,12 +98,58 @@ const Category = () => {
               onFiltersChange={setFilters}
               availableColors={availableColors}
               availableSizes={availableSizes}
-              maxPrice={maxPrice}
-              totalProducts={filteredProducts.length}
+              availableFabrics={availableFabrics}
+              maxPrice={50000}
+              totalProducts={totalCount}
             />
-            
+
             <div className="flex-1">
-              <ProductGrid products={filteredProducts} isLoading={isLoading} />
+              <ProductGrid products={products} isLoading={isLoading} />
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-10">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => goToPage(page - 1)}
+                    disabled={page <= 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                    let pageNum: number;
+                    if (totalPages <= 7) {
+                      pageNum = i + 1;
+                    } else if (page <= 4) {
+                      pageNum = i + 1;
+                    } else if (page >= totalPages - 3) {
+                      pageNum = totalPages - 6 + i;
+                    } else {
+                      pageNum = page - 3 + i;
+                    }
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={page === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => goToPage(pageNum)}
+                        className="w-10"
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => goToPage(page + 1)}
+                    disabled={page >= totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>

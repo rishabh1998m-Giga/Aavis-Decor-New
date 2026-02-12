@@ -5,30 +5,20 @@ import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { formatPrice } from "@/lib/formatters";
-import { generateOrderNumber } from "@/lib/formatters";
 import { addressSchema, type AddressFormValues, indianStates } from "@/lib/validators";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
+  Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from "@/components/ui/form";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { ChevronRight, Loader2, CreditCard, Banknote, CheckCircle } from "lucide-react";
+import { ChevronRight, Loader2, CreditCard, Banknote, CheckCircle, Tag, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -44,23 +34,65 @@ const Checkout = () => {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [addressData, setAddressData] = useState<AddressFormValues | null>(null);
 
+  // Discount state
+  const [discountCode, setDiscountCode] = useState("");
+  const [appliedDiscount, setAppliedDiscount] = useState<{
+    code: string;
+    amount: number;
+    type: string;
+    value: number;
+  } | null>(null);
+  const [discountLoading, setDiscountLoading] = useState(false);
+  const [discountError, setDiscountError] = useState("");
+
   const shippingCost = subtotal >= 999 ? 0 : 99;
   const codFee = paymentMethod === "cod" ? 49 : 0;
+  const discountAmount = appliedDiscount?.amount || 0;
   const gstAmount = Math.round((subtotal * 18) / 118);
-  const total = subtotal + shippingCost + codFee;
+  const total = subtotal - discountAmount + shippingCost + codFee;
 
   const form = useForm<AddressFormValues>({
     resolver: zodResolver(addressSchema),
     defaultValues: {
-      fullName: "",
-      phone: "",
-      addressLine1: "",
-      addressLine2: "",
-      city: "",
-      state: "",
-      pincode: "",
+      fullName: "", phone: "", addressLine1: "", addressLine2: "", city: "", state: "", pincode: "",
     },
   });
+
+  const handleApplyDiscount = async () => {
+    if (!discountCode.trim()) return;
+    setDiscountLoading(true);
+    setDiscountError("");
+
+    try {
+      const { data, error } = await supabase.functions.invoke("validate-discount", {
+        body: { code: discountCode.trim(), cartTotal: subtotal },
+      });
+
+      if (error) throw error;
+      if (!data.valid) {
+        setDiscountError(data.error || "Invalid code");
+        return;
+      }
+
+      setAppliedDiscount({
+        code: data.code,
+        amount: data.discountAmount,
+        type: data.type,
+        value: data.value,
+      });
+      toast({ title: "Discount applied!", description: `You save ${formatPrice(data.discountAmount)}` });
+    } catch {
+      setDiscountError("Failed to validate code");
+    } finally {
+      setDiscountLoading(false);
+    }
+  };
+
+  const removeDiscount = () => {
+    setAppliedDiscount(null);
+    setDiscountCode("");
+    setDiscountError("");
+  };
 
   const handleAddressSubmit = (values: AddressFormValues) => {
     setAddressData(values);
@@ -69,11 +101,9 @@ const Checkout = () => {
 
   const handlePlaceOrder = async () => {
     if (!addressData || items.length === 0) return;
-
     setIsPlacingOrder(true);
 
     try {
-      const orderNumber = generateOrderNumber();
       const shippingAddress = {
         full_name: addressData.fullName,
         phone: addressData.phone,
@@ -84,57 +114,25 @@ const Checkout = () => {
         pincode: addressData.pincode,
       };
 
-      // Create order
-      const { data: order, error: orderError } = await supabase
-        .from("orders")
-        .insert({
-          order_number: orderNumber,
-          user_id: user?.id || null,
-          subtotal,
-          shipping_amount: shippingCost,
-          gst_amount: gstAmount,
-          cod_fee: codFee,
-          total_amount: total,
-          payment_method: paymentMethod as any,
-          payment_status: paymentMethod === "cod" ? "pending" : "pending",
-          status: "pending",
-          shipping_address: shippingAddress,
-          billing_address: shippingAddress,
-        })
-        .select()
-        .single();
-
-      if (orderError) throw orderError;
-
-      // Create order items
-      const orderItems = items.map((item) => ({
-        order_id: order.id,
-        product_id: item.productId,
-        variant_id: item.variantId,
-        product_name: item.name,
-        variant_info: item.variantInfo,
-        sku: item.sku,
-        quantity: item.quantity,
-        unit_price: item.price,
-        total_price: item.price * item.quantity,
-        gst_rate: 18,
-        gst_amount: Math.round((item.price * item.quantity * 18) / 118),
-      }));
-
-      const { error: itemsError } = await supabase
-        .from("order_items")
-        .insert(orderItems);
-
-      if (itemsError) throw itemsError;
-
-      clearCart();
-
-      toast({
-        title: "Order placed successfully!",
-        description: `Order #${orderNumber}`,
+      const { data, error } = await supabase.functions.invoke("create-order", {
+        body: {
+          items: items.map((i) => ({
+            variantId: i.variantId,
+            productId: i.productId,
+            quantity: i.quantity,
+          })),
+          shippingAddress,
+          paymentMethod,
+          discountCode: appliedDiscount?.code || undefined,
+        },
       });
 
-      navigate(`/order-confirmation/${orderNumber}`);
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      clearCart();
+      toast({ title: "Order placed successfully!", description: `Order #${data.orderNumber}` });
+      navigate(`/order-confirmation/${data.orderNumber}`);
     } catch (error: any) {
       toast({
         title: "Failed to place order",
@@ -151,9 +149,7 @@ const Checkout = () => {
       <StoreLayout>
         <div className="pt-32 pb-20 min-h-screen container max-w-lg text-center">
           <h1 className="font-display text-2xl mb-4">Your bag is empty</h1>
-          <Button asChild>
-            <Link to="/">Continue Shopping</Link>
-          </Button>
+          <Button asChild><Link to="/">Continue Shopping</Link></Button>
         </div>
       </StoreLayout>
     );
@@ -180,26 +176,18 @@ const Checkout = () => {
                   }}
                   className={cn(
                     "flex items-center gap-2 text-xs tracking-widest",
-                    currentStep === step.key
-                      ? "text-foreground font-medium"
-                      : "text-foreground/40"
+                    currentStep === step.key ? "text-foreground font-medium" : "text-foreground/40"
                   )}
                 >
-                  <span
-                    className={cn(
-                      "w-6 h-6 rounded-full flex items-center justify-center text-[10px]",
-                      currentStep === step.key
-                        ? "bg-foreground text-background"
-                        : "border border-foreground/30"
-                    )}
-                  >
+                  <span className={cn(
+                    "w-6 h-6 rounded-full flex items-center justify-center text-[10px]",
+                    currentStep === step.key ? "bg-foreground text-background" : "border border-foreground/30"
+                  )}>
                     {i + 1}
                   </span>
                   {step.label.toUpperCase()}
                 </button>
-                {i < steps.length - 1 && (
-                  <ChevronRight className="h-4 w-4 text-foreground/20" />
-                )}
+                {i < steps.length - 1 && <ChevronRight className="h-4 w-4 text-foreground/20" />}
               </div>
             ))}
           </div>
@@ -225,7 +213,6 @@ const Checkout = () => {
                           <FormMessage />
                         </FormItem>
                       )} />
-
                       <FormField control={form.control} name="phone" render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-xs tracking-widest text-foreground/70">MOBILE NUMBER</FormLabel>
@@ -238,7 +225,6 @@ const Checkout = () => {
                           <FormMessage />
                         </FormItem>
                       )} />
-
                       <FormField control={form.control} name="addressLine1" render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-xs tracking-widest text-foreground/70">ADDRESS LINE 1</FormLabel>
@@ -246,7 +232,6 @@ const Checkout = () => {
                           <FormMessage />
                         </FormItem>
                       )} />
-
                       <FormField control={form.control} name="addressLine2" render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-xs tracking-widest text-foreground/70">ADDRESS LINE 2 (OPTIONAL)</FormLabel>
@@ -254,7 +239,6 @@ const Checkout = () => {
                           <FormMessage />
                         </FormItem>
                       )} />
-
                       <div className="grid grid-cols-2 gap-4">
                         <FormField control={form.control} name="city" render={({ field }) => (
                           <FormItem>
@@ -263,7 +247,6 @@ const Checkout = () => {
                             <FormMessage />
                           </FormItem>
                         )} />
-
                         <FormField control={form.control} name="pincode" render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-xs tracking-widest text-foreground/70">PINCODE</FormLabel>
@@ -272,7 +255,6 @@ const Checkout = () => {
                           </FormItem>
                         )} />
                       </div>
-
                       <FormField control={form.control} name="state" render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-xs tracking-widest text-foreground/70">STATE</FormLabel>
@@ -289,7 +271,6 @@ const Checkout = () => {
                           <FormMessage />
                         </FormItem>
                       )} />
-
                       <Button type="submit" className="w-full h-12 bg-foreground text-background hover:bg-foreground/90 text-xs tracking-widest">
                         CONTINUE TO PAYMENT
                       </Button>
@@ -315,7 +296,6 @@ const Checkout = () => {
                         </div>
                       </Label>
                     </div>
-
                     <div className={cn("flex items-center gap-4 p-4 border rounded-md cursor-pointer", paymentMethod === "upi" ? "border-foreground" : "border-border/50")}>
                       <RadioGroupItem value="upi" id="upi" />
                       <Label htmlFor="upi" className="cursor-pointer flex-1">
@@ -329,7 +309,6 @@ const Checkout = () => {
                       </Label>
                     </div>
                   </RadioGroup>
-
                   <div className="flex gap-4 mt-8">
                     <Button variant="outline" onClick={() => setCurrentStep("address")} className="flex-1 h-12 text-xs tracking-widest">
                       BACK
@@ -345,8 +324,6 @@ const Checkout = () => {
               {currentStep === "review" && addressData && (
                 <div>
                   <h2 className="font-display text-xl mb-6">Review Your Order</h2>
-
-                  {/* Shipping Address */}
                   <div className="border border-border/30 rounded-md p-4 mb-6">
                     <div className="flex justify-between items-start">
                       <h3 className="text-xs tracking-widest text-foreground/70 mb-2">SHIPPING ADDRESS</h3>
@@ -358,8 +335,6 @@ const Checkout = () => {
                     <p className="text-sm text-foreground/70">{addressData.city}, {addressData.state} - {addressData.pincode}</p>
                     <p className="text-sm text-foreground/70">+91 {addressData.phone}</p>
                   </div>
-
-                  {/* Payment Method */}
                   <div className="border border-border/30 rounded-md p-4 mb-6">
                     <div className="flex justify-between items-start">
                       <h3 className="text-xs tracking-widest text-foreground/70 mb-2">PAYMENT METHOD</h3>
@@ -367,14 +342,12 @@ const Checkout = () => {
                     </div>
                     <p className="text-sm">{paymentMethod === "cod" ? "Cash on Delivery" : "UPI / Card / Net Banking"}</p>
                   </div>
-
-                  {/* Items */}
                   <div className="border border-border/30 rounded-md p-4 mb-6">
                     <h3 className="text-xs tracking-widest text-foreground/70 mb-4">ORDER ITEMS ({items.length})</h3>
                     <div className="space-y-3">
                       {items.map((item) => (
                         <div key={item.variantId} className="flex gap-3">
-                          <img src={item.imageUrl} alt={item.name} className="w-14 h-18 object-cover" />
+                          <img src={item.imageUrl} alt={item.name} className="w-14 h-18 object-cover" loading="lazy" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">{item.name}</p>
                             <p className="text-xs text-foreground/50">{item.variantInfo} × {item.quantity}</p>
@@ -384,7 +357,6 @@ const Checkout = () => {
                       ))}
                     </div>
                   </div>
-
                   <Button
                     onClick={handlePlaceOrder}
                     disabled={isPlacingOrder}
@@ -393,10 +365,7 @@ const Checkout = () => {
                     {isPlacingOrder ? (
                       <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> PLACING ORDER...</>
                     ) : (
-                      <>
-                        <CheckCircle className="mr-2 h-4 w-4" />
-                        PLACE ORDER — {formatPrice(total)}
-                      </>
+                      <><CheckCircle className="mr-2 h-4 w-4" /> PLACE ORDER — {formatPrice(total)}</>
                     )}
                   </Button>
                 </div>
@@ -412,9 +381,48 @@ const Checkout = () => {
                   <div className="flex justify-between"><span className="text-foreground/70">Shipping</span><span>{shippingCost === 0 ? <span className="text-green-600">FREE</span> : formatPrice(shippingCost)}</span></div>
                   <div className="flex justify-between"><span className="text-foreground/70">GST (18%)</span><span>{formatPrice(gstAmount)}</span></div>
                   {codFee > 0 && <div className="flex justify-between"><span className="text-foreground/70">COD Fee</span><span>{formatPrice(codFee)}</span></div>}
+                  {discountAmount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Discount ({appliedDiscount?.code})</span>
+                      <span>-{formatPrice(discountAmount)}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="border-t border-border/30 pt-3">
                   <div className="flex justify-between text-lg font-medium"><span>Total</span><span>{formatPrice(total)}</span></div>
+                </div>
+
+                {/* Discount Code */}
+                <div className="border-t border-border/30 pt-4">
+                  <h4 className="text-xs tracking-widest text-foreground/70 mb-3">DISCOUNT CODE</h4>
+                  {appliedDiscount ? (
+                    <div className="flex items-center justify-between bg-green-50 dark:bg-green-950/20 p-3 rounded-md">
+                      <div className="flex items-center gap-2">
+                        <Tag className="h-4 w-4 text-green-600" />
+                        <span className="text-sm font-medium text-green-600">{appliedDiscount.code}</span>
+                      </div>
+                      <button onClick={removeDiscount}><X className="h-4 w-4 text-foreground/50" /></button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Input
+                        value={discountCode}
+                        onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
+                        placeholder="Enter code"
+                        className="h-10 text-sm"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleApplyDiscount}
+                        disabled={discountLoading || !discountCode.trim()}
+                        className="h-10 px-4"
+                      >
+                        {discountLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
+                      </Button>
+                    </div>
+                  )}
+                  {discountError && <p className="text-xs text-red-500 mt-2">{discountError}</p>}
                 </div>
               </div>
             </div>

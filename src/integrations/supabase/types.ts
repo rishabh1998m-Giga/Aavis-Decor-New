@@ -95,6 +95,123 @@ export type Database = {
         }
         Relationships: []
       }
+      collection_products: {
+        Row: {
+          collection_id: string
+          product_id: string
+          sort_order: number
+        }
+        Insert: {
+          collection_id: string
+          product_id: string
+          sort_order?: number
+        }
+        Update: {
+          collection_id?: string
+          product_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collection_products_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "collection_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      collections: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          rules: Json | null
+          slug: string
+          sort_order: number
+          title: string
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          rules?: Json | null
+          slug: string
+          sort_order?: number
+          title: string
+          type?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          rules?: Json | null
+          slug?: string
+          sort_order?: number
+          title?: string
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      discounts: {
+        Row: {
+          code: string
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          max_uses: number | null
+          min_cart_value: number | null
+          type: string
+          updated_at: string | null
+          usage_count: number
+          value: number
+        }
+        Insert: {
+          code: string
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          min_cart_value?: number | null
+          type: string
+          updated_at?: string | null
+          usage_count?: number
+          value: number
+        }
+        Update: {
+          code?: string
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          min_cart_value?: number | null
+          type?: string
+          updated_at?: string | null
+          usage_count?: number
+          value?: number
+        }
+        Relationships: []
+      }
       gst_settings: {
         Row: {
           business_address: string | null
@@ -213,6 +330,9 @@ export type Database = {
           cod_fee: number | null
           created_at: string | null
           customer_gstin: string | null
+          discount_amount: number | null
+          discount_code: string | null
+          fulfillment_status: string
           gst_amount: number | null
           id: string
           notes: string | null
@@ -224,6 +344,8 @@ export type Database = {
           status: Database["public"]["Enums"]["order_status"] | null
           subtotal: number
           total_amount: number
+          tracking_number: string | null
+          tracking_url: string | null
           updated_at: string | null
           user_id: string | null
         }
@@ -232,6 +354,9 @@ export type Database = {
           cod_fee?: number | null
           created_at?: string | null
           customer_gstin?: string | null
+          discount_amount?: number | null
+          discount_code?: string | null
+          fulfillment_status?: string
           gst_amount?: number | null
           id?: string
           notes?: string | null
@@ -243,6 +368,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["order_status"] | null
           subtotal?: number
           total_amount?: number
+          tracking_number?: string | null
+          tracking_url?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -251,6 +378,9 @@ export type Database = {
           cod_fee?: number | null
           created_at?: string | null
           customer_gstin?: string | null
+          discount_amount?: number | null
+          discount_code?: string | null
+          fulfillment_status?: string
           gst_amount?: number | null
           id?: string
           notes?: string | null
@@ -262,6 +392,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["order_status"] | null
           subtotal?: number
           total_amount?: number
+          tracking_number?: string | null
+          tracking_url?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -466,11 +598,14 @@ export type Database = {
       products: {
         Row: {
           base_price: number
+          care_instructions: string | null
           category_id: string | null
           compare_at_price: number | null
           created_at: string | null
           description: string | null
           design_name: string | null
+          dimensions: string | null
+          fabric: string | null
           gst_rate: number | null
           id: string
           is_active: boolean | null
@@ -485,11 +620,14 @@ export type Database = {
         }
         Insert: {
           base_price?: number
+          care_instructions?: string | null
           category_id?: string | null
           compare_at_price?: number | null
           created_at?: string | null
           description?: string | null
           design_name?: string | null
+          dimensions?: string | null
+          fabric?: string | null
           gst_rate?: number | null
           id?: string
           is_active?: boolean | null
@@ -504,11 +642,14 @@ export type Database = {
         }
         Update: {
           base_price?: number
+          care_instructions?: string | null
           category_id?: string | null
           compare_at_price?: number | null
           created_at?: string | null
           description?: string | null
           design_name?: string | null
+          dimensions?: string | null
+          fabric?: string | null
           gst_rate?: number | null
           id?: string
           is_active?: boolean | null
@@ -623,6 +764,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      decrement_inventory: {
+        Args: { p_quantity: number; p_variant_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
