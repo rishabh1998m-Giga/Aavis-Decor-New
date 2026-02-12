@@ -18,12 +18,16 @@ import OrderConfirmation from "./pages/OrderConfirmation";
 import Account from "./pages/Account";
 import AccountOrders from "./pages/account/Orders";
 import AccountAddresses from "./pages/account/Addresses";
+import Collections from "./pages/Collections";
 
 // Admin
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminProducts from "./pages/admin/Products";
 import AdminOrders from "./pages/admin/Orders";
+import AdminCollections from "./pages/admin/Collections";
+import AdminDiscounts from "./pages/admin/Discounts";
+import AdminCustomers from "./pages/admin/Customers";
 import AdminSettings from "./pages/admin/Settings";
 
 // Static
@@ -50,6 +54,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/category/:slug" element={<Category />} />
+              <Route path="/collections/:slug" element={<Collections />} />
               <Route path="/product/:slug" element={<Product />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/checkout" element={<Checkout />} />
@@ -66,6 +71,9 @@ const App = () => (
                 <Route index element={<AdminDashboard />} />
                 <Route path="products" element={<AdminProducts />} />
                 <Route path="orders" element={<AdminOrders />} />
+                <Route path="collections" element={<AdminCollections />} />
+                <Route path="discounts" element={<AdminDiscounts />} />
+                <Route path="customers" element={<AdminCustomers />} />
                 <Route path="settings" element={<AdminSettings />} />
               </Route>
 
