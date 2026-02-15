@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
 import CartDrawer from "@/components/cart/CartDrawer";
+import AuthGuard from "@/components/auth/AuthGuard";
 
 // Pages
 import Index from "./pages/Index";
@@ -15,6 +16,7 @@ import Product from "./pages/Product";
 import Cart from "./pages/Cart";
 import Checkout from "./pages/Checkout";
 import OrderConfirmation from "./pages/OrderConfirmation";
+import OrderTracking from "./pages/OrderTracking";
 import Account from "./pages/Account";
 import AccountOrders from "./pages/account/Orders";
 import AccountAddresses from "./pages/account/Addresses";
@@ -59,15 +61,17 @@ const App = () => (
               <Route path="/cart" element={<Cart />} />
               <Route path="/checkout" element={<Checkout />} />
               <Route path="/order-confirmation/:orderNumber" element={<OrderConfirmation />} />
+              <Route path="/order-tracking/:orderNumber" element={<OrderTracking />} />
+              <Route path="/order-tracking" element={<OrderTracking />} />
 
-              {/* Account */}
-              <Route path="/account" element={<Account />}>
+              {/* Account - requires authentication */}
+              <Route path="/account" element={<AuthGuard><Account /></AuthGuard>}>
                 <Route path="orders" element={<AccountOrders />} />
                 <Route path="addresses" element={<AccountAddresses />} />
               </Route>
 
-              {/* Admin */}
-              <Route path="/admin" element={<AdminLayout />}>
+              {/* Admin - requires admin role */}
+              <Route path="/admin" element={<AuthGuard requireAdmin><AdminLayout /></AuthGuard>}>
                 <Route index element={<AdminDashboard />} />
                 <Route path="products" element={<AdminProducts />} />
                 <Route path="orders" element={<AdminOrders />} />

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatPrice } from "@/lib/formatters";
 import { useCategories } from "@/hooks/useProducts";
+import { useImageUpload } from "@/hooks/useImageUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +19,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Plus, Edit2, Trash2, Upload, X } from "lucide-react";
+import { Search, Plus, Edit2, Trash2, Upload, X, ImagePlus, Loader2 } from "lucide-react";
 
 interface VariantForm {
   id?: string;
@@ -43,7 +44,10 @@ const AdminProducts = () => {
   const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
   const [variants, setVariants] = useState<VariantForm[]>([]);
   const csvInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const { data: categories = [] } = useCategories();
+  const { uploadMultiple, uploading: imageUploading } = useImageUpload();
+  const [productImages, setProductImages] = useState<{ id?: string; url: string }[]>([]);
 
   const [formData, setFormData] = useState({
     name: "", slug: "", description: "", short_description: "",
@@ -128,6 +132,19 @@ const AdminProducts = () => {
           await supabase.from("product_variants").insert(variantPayload);
         }
       }
+
+      // Save new images (ones without id are pending uploads already saved to state as URLs)
+      const newImages = productImages.filter((img) => !img.id);
+      if (newImages.length > 0) {
+        await supabase.from("product_images").insert(
+          newImages.map((img, i) => ({
+            product_id: productId,
+            url: img.url,
+            sort_order: i,
+            is_primary: i === 0 && productImages.indexOf(img) === 0,
+          }))
+        );
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-products"] });
@@ -152,10 +169,11 @@ const AdminProducts = () => {
       tags: "", is_featured: false, is_active: true,
     });
     setVariants([{ ...emptyVariant }]);
+    setProductImages([]);
     setIsDialogOpen(true);
   };
 
-  const openEditDialog = (product: any) => {
+  const openEditDialog = async (product: any) => {
     setEditingProduct(product);
     setFormData({
       name: product.name, slug: product.slug,
@@ -176,6 +194,15 @@ const AdminProducts = () => {
       }))
     );
     if ((product.product_variants || []).length === 0) setVariants([{ ...emptyVariant }]);
+
+    // Load existing images
+    const { data: images } = await supabase
+      .from("product_images")
+      .select("id, url")
+      .eq("product_id", product.id)
+      .order("sort_order");
+    setProductImages((images || []).map((img) => ({ id: img.id, url: img.url })));
+
     setIsDialogOpen(true);
   };
 
@@ -353,6 +380,62 @@ const AdminProducts = () => {
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={formData.is_active} onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })} /> Active
               </label>
+            </div>
+
+            {/* Image Upload Section */}
+            <div className="border-t border-border/30 pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-sm font-medium">Product Images</Label>
+                <div>
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={async (e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length === 0) return;
+                      // For new products, use a temp ID; for existing, use real ID
+                      const pid = editingProduct?.id || `temp-${Date.now()}`;
+                      const urls = await uploadMultiple(files, pid);
+                      setProductImages((prev) => [...prev, ...urls.map((u) => ({ url: u }))]);
+                      if (imageInputRef.current) imageInputRef.current.value = "";
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => imageInputRef.current?.click()}
+                    disabled={imageUploading}
+                  >
+                    {imageUploading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <ImagePlus className="h-3 w-3 mr-1" />}
+                    {imageUploading ? "Uploading..." : "Add Images"}
+                  </Button>
+                </div>
+              </div>
+              {productImages.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  {productImages.map((img, i) => (
+                    <div key={i} className="relative group w-20 h-20">
+                      <img src={img.url} alt="" className="w-20 h-20 object-cover rounded border border-border/30" />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (img.id) {
+                            await supabase.from("product_images").delete().eq("id", img.id);
+                          }
+                          setProductImages((prev) => prev.filter((_, j) => j !== i));
+                        }}
+                        className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Variants Section */}

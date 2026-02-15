@@ -76,7 +76,7 @@ const OrderConfirmation = () => {
 
           <div className="grid grid-cols-2 gap-4">
             <Button asChild variant="outline">
-              <Link to="/account/orders">View Orders</Link>
+              <Link to={`/order-tracking/${orderNumber}`}>Track Order</Link>
             </Button>
             <Button asChild>
               <Link to="/">Continue Shopping</Link>
