@@ -8,6 +8,7 @@ import ProductFilters, { FilterState } from "@/components/products/ProductFilter
 import { ProductWithDetails } from "@/hooks/useProducts";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, ChevronLeft } from "lucide-react";
+import PageMeta from "@/components/seo/PageMeta";
 
 const PAGE_SIZE = 20;
 
@@ -137,6 +138,10 @@ const Collections = () => {
 
   return (
     <StoreLayout>
+      <PageMeta
+        title={collection?.title || slug || "Collection"}
+        description={collection?.description || `Shop the ${collection?.title || slug} collection at Cushy Crafts.`}
+      />
       <div className="pt-32 pb-20">
         <div className="container mb-8">
           <nav className="flex items-center gap-2 text-xs text-foreground/50">

@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit2, Trash2 } from "lucide-react";
+import CollectionRulePreview from "@/components/admin/CollectionRulePreview";
 
 const AdminCollections = () => {
   const queryClient = useQueryClient();
@@ -142,7 +143,11 @@ const AdminCollections = () => {
               </Select>
             </div>
             {form.type === "automatic" && (
-              <div><Label>Rules (JSON)</Label><Textarea value={form.rules} onChange={(e) => setForm({ ...form, rules: e.target.value })} rows={3} placeholder='{"tags": ["floral"]}' /></div>
+              <div>
+                <Label>Rules (JSON)</Label>
+                <Textarea value={form.rules} onChange={(e) => setForm({ ...form, rules: e.target.value })} rows={3} placeholder='{"tags": ["floral"]}' />
+                <CollectionRulePreview rulesJson={form.rules} />
+              </div>
             )}
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} /> Active

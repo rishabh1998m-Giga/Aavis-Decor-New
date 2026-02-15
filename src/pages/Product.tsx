@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { ChevronRight, Minus, Plus, ShoppingBag, Heart, Share2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import PageMeta from "@/components/seo/PageMeta";
 
 const Product = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -89,8 +90,31 @@ const Product = () => {
     );
   }
 
+  const primaryImage = product.images.find((img) => img.isPrimary) || product.images[0];
+  const productJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.shortDescription || product.description || "",
+    image: primaryImage?.url,
+    sku: selectedVariant?.sku,
+    offers: {
+      "@type": "Offer",
+      price: selectedVariant?.price || product.basePrice,
+      priceCurrency: "INR",
+      availability: inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+    },
+  };
+
   return (
     <StoreLayout>
+      <PageMeta
+        title={product.name}
+        description={product.shortDescription || product.description?.slice(0, 155) || `Buy ${product.name} at Cushy Crafts`}
+        ogImage={primaryImage?.url}
+        ogType="product"
+        jsonLd={productJsonLd}
+      />
       <div className="pt-32 pb-20">
         {/* Breadcrumb */}
         <div className="container mb-8">

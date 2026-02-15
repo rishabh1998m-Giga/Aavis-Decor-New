@@ -6,6 +6,7 @@ import ProductFilters, { FilterState } from "@/components/products/ProductFilter
 import { usePaginatedProducts, useCategories } from "@/hooks/useProducts";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, ChevronLeft } from "lucide-react";
+import PageMeta from "@/components/seo/PageMeta";
 
 const PAGE_SIZE = 20;
 
@@ -70,6 +71,10 @@ const Category = () => {
 
   return (
     <StoreLayout>
+      <PageMeta
+        title={category?.name || slug || "Category"}
+        description={category?.description || `Browse ${category?.name || slug} at Cushy Crafts. Premium home textiles.`}
+      />
       <div className="pt-32 pb-20">
         {/* Breadcrumb */}
         <div className="container mb-8">

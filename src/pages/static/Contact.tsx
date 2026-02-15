@@ -1,5 +1,6 @@
 import { useState } from "react";
 import StoreLayout from "@/components/layout/StoreLayout";
+import PageMeta from "@/components/seo/PageMeta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,6 +24,7 @@ const Contact = () => {
 
   return (
     <StoreLayout>
+      <PageMeta title="Contact Us" description="Get in touch with Cushy Crafts. We'd love to hear from you about our home textiles, orders, or custom requirements." />
       <div className="pt-32 pb-20 min-h-screen">
         <div className="container max-w-4xl">
           <h1 className="font-display text-4xl mb-4 text-center">Get In Touch</h1>

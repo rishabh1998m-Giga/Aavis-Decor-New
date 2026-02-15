@@ -1,7 +1,9 @@
 import StoreLayout from "@/components/layout/StoreLayout";
+import PageMeta from "@/components/seo/PageMeta";
 
 const About = () => (
   <StoreLayout>
+    <PageMeta title="About Us" description="Learn about Cushy Crafts — our story, mission, and commitment to quality handcrafted home textiles." />
     <div className="pt-32 pb-20 min-h-screen">
       <div className="container max-w-3xl">
         <h1 className="font-display text-4xl mb-8">Our Story</h1>

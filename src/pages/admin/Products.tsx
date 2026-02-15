@@ -19,7 +19,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Plus, Edit2, Trash2, Upload, X, ImagePlus, Loader2 } from "lucide-react";
+import { Search, Plus, Edit2, Trash2, Upload, X, ImagePlus, Loader2, Tags } from "lucide-react";
+import BulkTagUpdate from "@/components/admin/BulkTagUpdate";
 
 interface VariantForm {
   id?: string;
@@ -48,6 +49,8 @@ const AdminProducts = () => {
   const { data: categories = [] } = useCategories();
   const { uploadMultiple, uploading: imageUploading } = useImageUpload();
   const [productImages, setProductImages] = useState<{ id?: string; url: string }[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkTagOpen, setIsBulkTagOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "", slug: "", description: "", short_description: "",
@@ -245,6 +248,11 @@ const AdminProducts = () => {
           <Button variant="outline" onClick={() => csvInputRef.current?.click()} className="gap-2">
             <Upload className="h-4 w-4" /> CSV Import
           </Button>
+          {selectedIds.size > 0 && (
+            <Button variant="outline" onClick={() => setIsBulkTagOpen(true)} className="gap-2">
+              <Tags className="h-4 w-4" /> Tags ({selectedIds.size})
+            </Button>
+          )}
           <Button onClick={openAddDialog} className="gap-2">
             <Plus className="h-4 w-4" /> Add Product
           </Button>
@@ -260,6 +268,16 @@ const AdminProducts = () => {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.size === filteredProducts.length && filteredProducts.length > 0}
+                  onChange={(e) => {
+                    if (e.target.checked) setSelectedIds(new Set(filteredProducts.map((p) => p.id)));
+                    else setSelectedIds(new Set());
+                  }}
+                />
+              </TableHead>
               <TableHead>Product</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Price</TableHead>
@@ -272,6 +290,18 @@ const AdminProducts = () => {
           <TableBody>
             {filteredProducts.map((product) => (
               <TableRow key={product.id}>
+                <TableCell>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(product.id)}
+                    onChange={(e) => {
+                      const next = new Set(selectedIds);
+                      if (e.target.checked) next.add(product.id);
+                      else next.delete(product.id);
+                      setSelectedIds(next);
+                    }}
+                  />
+                </TableCell>
                 <TableCell>
                   <div>
                     <p className="font-medium text-sm">{product.name}</p>
@@ -481,6 +511,12 @@ const AdminProducts = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      <BulkTagUpdate
+        open={isBulkTagOpen}
+        onOpenChange={setIsBulkTagOpen}
+        selectedProductIds={Array.from(selectedIds)}
+      />
     </div>
   );
 };

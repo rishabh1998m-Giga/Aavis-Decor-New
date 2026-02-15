@@ -1,9 +1,13 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatPrice, formatDate } from "@/lib/formatters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from "recharts";
 import { DollarSign, Package, ShoppingCart, Users, AlertTriangle, TrendingUp } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const AdminDashboard = () => {
   const { data: stats } = useQuery({
@@ -12,7 +16,7 @@ const AdminDashboard = () => {
       const [ordersRes, productsRes, lowStockRes, customersRes] = await Promise.all([
         supabase.from("orders").select("id, total_amount, status, payment_method, payment_status, created_at"),
         supabase.from("products").select("id", { count: "exact" }),
-        supabase.from("product_variants").select("id, product_id, stock_quantity, sku").lte("stock_quantity", 5),
+        supabase.from("product_variants").select("id, product_id, stock_quantity, sku, products(name)").lte("stock_quantity", 5),
         supabase.from("profiles").select("id", { count: "exact" }),
       ]);
 
@@ -31,19 +35,46 @@ const AdminDashboard = () => {
         .filter((o) => new Date(o.created_at!) > sevenDaysAgo)
         .reduce((sum, o) => sum + Number(o.total_amount), 0);
 
+      // Build daily revenue for last 30 days
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const dailyMap: Record<string, { revenue: number; orders: number }> = {};
+      for (let d = new Date(thirtyDaysAgo); d <= new Date(); d.setDate(d.getDate() + 1)) {
+        const key = d.toISOString().slice(0, 10);
+        dailyMap[key] = { revenue: 0, orders: 0 };
+      }
+      orders.forEach((o) => {
+        const key = (o.created_at || "").slice(0, 10);
+        if (dailyMap[key]) {
+          dailyMap[key].revenue += Number(o.total_amount);
+          dailyMap[key].orders += 1;
+        }
+      });
+      const dailyData = Object.entries(dailyMap).map(([date, v]) => ({
+        date: new Date(date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+        revenue: Math.round(v.revenue),
+        orders: v.orders,
+      }));
+
       return {
         totalOrders: orders.length,
         totalRevenue,
         totalProducts: productsRes.count || 0,
         totalCustomers: customersRes.count || 0,
-        lowStockItems: lowStockRes.data || [],
+        lowStockItems: (lowStockRes.data || []) as any[],
         pendingOrders,
         codOrders,
         recentRevenue,
         recentOrders: orders.slice(0, 10),
+        dailyData,
       };
     },
   });
+
+  const chartConfig = useMemo(() => ({
+    revenue: { label: "Revenue", color: "hsl(var(--accent))" },
+    orders: { label: "Orders", color: "hsl(var(--primary))" },
+  }), []);
 
   const statusColors: Record<string, string> = {
     pending: "bg-yellow-100 text-yellow-800",
@@ -99,7 +130,49 @@ const AdminDashboard = () => {
         </Card>
       </div>
 
-      {/* Low Stock Alerts */}
+      {/* Revenue Chart */}
+      {stats?.dailyData && stats.dailyData.length > 0 && (
+        <div className="grid lg:grid-cols-2 gap-4 mb-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-display flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" /> Revenue (30 days)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                <BarChart data={stats.dailyData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={4} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="revenue" fill="var(--color-revenue)" radius={[2, 2, 0, 0]} />
+                </BarChart>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-display flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5" /> Orders (30 days)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                <LineChart data={stats.dailyData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={4} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Line type="monotone" dataKey="orders" stroke="var(--color-orders)" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Low Stock Alerts - Enhanced with product names */}
       {stats?.lowStockItems && stats.lowStockItems.length > 0 && (
         <Card className="mb-8">
           <CardHeader>
@@ -111,8 +184,13 @@ const AdminDashboard = () => {
             <div className="space-y-2">
               {stats.lowStockItems.map((item: any) => (
                 <div key={item.id} className="flex items-center justify-between text-sm p-2 bg-muted/50 rounded">
-                  <span className="text-foreground/70 font-mono">{item.sku}</span>
-                  <span className="font-medium text-yellow-600">{item.stock_quantity} left</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-foreground/70 font-mono text-xs">{item.sku}</span>
+                    <span className="text-foreground/50 text-xs">{(item as any).products?.name || "—"}</span>
+                  </div>
+                  <Badge variant={item.stock_quantity === 0 ? "destructive" : "outline"} className={item.stock_quantity > 0 ? "border-yellow-500 text-yellow-600" : ""}>
+                    {item.stock_quantity === 0 ? "Out of stock" : `${item.stock_quantity} left`}
+                  </Badge>
                 </div>
               ))}
             </div>
@@ -125,7 +203,7 @@ const AdminDashboard = () => {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg font-display flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" /> Recent Orders
+              <Package className="h-5 w-5" /> Recent Orders
             </CardTitle>
           </CardHeader>
           <CardContent>
