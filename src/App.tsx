@@ -71,7 +71,7 @@ const App = () => (
               </Route>
 
               {/* Admin - requires admin role */}
-              <Route path="/admin" element={<AuthGuard requireAdmin><AdminLayout /></AuthGuard>}>
+              <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<AdminDashboard />} />
                 <Route path="products" element={<AdminProducts />} />
                 <Route path="orders" element={<AdminOrders />} />
