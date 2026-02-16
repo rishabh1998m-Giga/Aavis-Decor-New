@@ -73,7 +73,7 @@ const Category = () => {
     <StoreLayout>
       <PageMeta
         title={category?.name || slug || "Category"}
-        description={category?.description || `Browse ${category?.name || slug} at Cushy Crafts. Premium home textiles.`}
+        description={category?.description || `Browse ${category?.name || slug} at Aavis Decor. Premium home textiles.`}
       />
       <div className="pt-32 pb-20">
         {/* Breadcrumb */}

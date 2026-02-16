@@ -23,7 +23,7 @@ const HeroBanner = () => {
           transition={{ duration: 0.8, ease: "easeOut" }}
         >
           <h1 className="font-display text-5xl md:text-6xl lg:text-7xl text-foreground mb-6 tracking-wide">
-            Life n Colors
+            Aavis Decor
           </h1>
         </motion.div>
 

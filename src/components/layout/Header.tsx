@@ -36,7 +36,7 @@ const Header = () => {
           {/* Center: Logo */}
           <Link to="/" className="absolute left-1/2 -translate-x-1/2">
             <h1 className="font-display text-2xl lg:text-3xl text-foreground tracking-wide">
-              Life n Colors
+              Aavis Decor
             </h1>
           </Link>
 

@@ -11,7 +11,7 @@ const ReturnsPolicy = () => (
 
           <h2 className="font-display text-xl text-foreground">How to Return</h2>
           <ol>
-            <li>Contact us at hello@lifencolors.in with your order number</li>
+            <li>Contact us at hello@aavisdecor.com with your order number</li>
             <li>We'll arrange a pickup from your address</li>
             <li>Refund will be processed within 5-7 business days after inspection</li>
           </ol>

@@ -140,7 +140,7 @@ const Collections = () => {
     <StoreLayout>
       <PageMeta
         title={collection?.title || slug || "Collection"}
-        description={collection?.description || `Shop the ${collection?.title || slug} collection at Cushy Crafts.`}
+        description={collection?.description || `Shop the ${collection?.title || slug} collection at Aavis Decor.`}
       />
       <div className="pt-32 pb-20">
         <div className="container mb-8">

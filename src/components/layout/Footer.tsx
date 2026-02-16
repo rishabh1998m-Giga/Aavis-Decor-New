@@ -8,7 +8,7 @@ const Footer = () => {
           {/* Brand */}
           <div className="lg:col-span-1">
             <h3 className="font-display text-2xl text-background mb-4 tracking-wide">
-              Life n Colors
+              Aavis Decor
             </h3>
             <p className="text-sm leading-relaxed opacity-70 max-w-xs">
               Weaving beautiful life stories through art, created for the spaces you call home.
@@ -51,7 +51,7 @@ const Footer = () => {
         </div>
 
         <div className="mt-16 pt-8 border-t border-background/10 text-center text-xs opacity-40 tracking-wide">
-          © {new Date().getFullYear()} Life n Colors. All rights reserved.
+          © {new Date().getFullYear()} Aavis Decor. All rights reserved.
         </div>
       </div>
     </footer>

@@ -7,7 +7,7 @@ const Terms = () => (
         <h1 className="font-display text-4xl mb-8">Terms of Service</h1>
         <div className="prose text-foreground/70 space-y-6">
           <p>Last updated: February 2026</p>
-          <p>By using lifencolors.in, you agree to the following terms and conditions.</p>
+          <p>By using aavisdecor.com, you agree to the following terms and conditions.</p>
 
           <h2 className="font-display text-xl text-foreground">Orders & Pricing</h2>
           <p>All prices are listed in Indian Rupees (₹) and include GST. We reserve the right to modify prices without notice. Orders are confirmed only upon payment verification.</p>
@@ -19,7 +19,7 @@ const Terms = () => (
           <p>You are responsible for maintaining the confidentiality of your account credentials and all activities under your account.</p>
 
           <h2 className="font-display text-xl text-foreground">Intellectual Property</h2>
-          <p>All content, designs, and images on this website are the property of Life n Colors and may not be reproduced without permission.</p>
+          <p>All content, designs, and images on this website are the property of Aavis Decor and may not be reproduced without permission.</p>
 
           <h2 className="font-display text-xl text-foreground">Governing Law</h2>
           <p>These terms are governed by the laws of India. Any disputes shall be subject to the jurisdiction of courts in New Delhi.</p>

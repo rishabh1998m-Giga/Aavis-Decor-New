@@ -110,7 +110,7 @@ const Product = () => {
     <StoreLayout>
       <PageMeta
         title={product.name}
-        description={product.shortDescription || product.description?.slice(0, 155) || `Buy ${product.name} at Cushy Crafts`}
+        description={product.shortDescription || product.description?.slice(0, 155) || `Buy ${product.name} at Aavis Decor`}
         ogImage={primaryImage?.url}
         ogType="product"
         jsonLd={productJsonLd}

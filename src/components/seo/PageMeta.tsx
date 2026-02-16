@@ -9,7 +9,7 @@ interface PageMetaProps {
   jsonLd?: Record<string, any>;
 }
 
-const SITE_NAME = "Cushy Crafts";
+const SITE_NAME = "Aavis Decor";
 const DEFAULT_DESCRIPTION = "Premium handcrafted home textiles — pillow covers, curtains, table cloths & more. Quality fabrics, elegant designs, delivered across India.";
 const DEFAULT_OG_IMAGE = "/placeholder.svg";
 

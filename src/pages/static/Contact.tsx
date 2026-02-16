@@ -24,7 +24,7 @@ const Contact = () => {
 
   return (
     <StoreLayout>
-      <PageMeta title="Contact Us" description="Get in touch with Cushy Crafts. We'd love to hear from you about our home textiles, orders, or custom requirements." />
+      <PageMeta title="Contact Us" description="Get in touch with Aavis Decor. We'd love to hear from you about our home textiles, orders, or custom requirements." />
       <div className="pt-32 pb-20 min-h-screen">
         <div className="container max-w-4xl">
           <h1 className="font-display text-4xl mb-4 text-center">Get In Touch</h1>
@@ -39,7 +39,7 @@ const Contact = () => {
                 <Mail className="h-5 w-5 text-foreground/60 mt-0.5" />
                 <div>
                   <p className="font-medium text-sm">Email</p>
-                  <p className="text-foreground/60 text-sm">hello@lifencolors.in</p>
+                  <p className="text-foreground/60 text-sm">hello@aavisdecor.com</p>
                 </div>
               </div>
               <div className="flex gap-4">
@@ -54,7 +54,7 @@ const Contact = () => {
                 <div>
                   <p className="font-medium text-sm">Address</p>
                   <p className="text-foreground/60 text-sm">
-                    Life n Colors Studio<br />
+                    Aavis Decor Studio<br />
                     New Delhi, India 110001
                   </p>
                 </div>

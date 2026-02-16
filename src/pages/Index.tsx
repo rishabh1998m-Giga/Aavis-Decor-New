@@ -9,7 +9,7 @@ const Index = () => {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "HomeGoodsStore",
-    name: "Cushy Crafts",
+    name: "Aavis Decor",
     description: "Premium handcrafted home textiles — pillow covers, curtains, table cloths & more.",
     url: window.location.origin,
   };
@@ -17,7 +17,7 @@ const Index = () => {
   return (
     <StoreLayout>
       <PageMeta
-        title="Cushy Crafts"
+        title="Aavis Decor"
         description="Shop premium handcrafted pillow covers, curtains, table cloths and home textiles. Quality fabrics, elegant designs, free shipping across India."
         jsonLd={jsonLd}
       />

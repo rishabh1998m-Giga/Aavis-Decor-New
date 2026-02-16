@@ -3,13 +3,13 @@ import PageMeta from "@/components/seo/PageMeta";
 
 const About = () => (
   <StoreLayout>
-    <PageMeta title="About Us" description="Learn about Cushy Crafts — our story, mission, and commitment to quality handcrafted home textiles." />
+    <PageMeta title="About Us" description="Learn about Aavis Decor — our story, mission, and commitment to quality handcrafted home textiles." />
     <div className="pt-32 pb-20 min-h-screen">
       <div className="container max-w-3xl">
         <h1 className="font-display text-4xl mb-8">Our Story</h1>
         <div className="prose prose-lg text-foreground/70 space-y-6">
           <p>
-            At <strong className="text-foreground">Life n Colors</strong>, we believe that every home tells a story. 
+            At <strong className="text-foreground">Aavis Decor</strong>, we believe that every home tells a story. 
             Our mission is to help you write yours with fabrics that inspire, comfort, and transform 
             your living spaces into sanctuaries of beauty.
           </p>
