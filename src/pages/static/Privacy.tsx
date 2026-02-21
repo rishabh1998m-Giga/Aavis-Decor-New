@@ -7,7 +7,7 @@ const Privacy = () => (
         <h1 className="font-display text-4xl mb-8">Privacy Policy</h1>
         <div className="prose text-foreground/70 space-y-6">
           <p>Last updated: February 2026</p>
-          <p>Life n Colors ("we", "our") is committed to protecting your privacy. This policy explains how we collect, use, and protect your personal information.</p>
+          <p>Aavis Decor ("we", "our") is committed to protecting your privacy. This policy explains how we collect, use, and protect your personal information.</p>
 
           <h2 className="font-display text-xl text-foreground">Information We Collect</h2>
           <ul>

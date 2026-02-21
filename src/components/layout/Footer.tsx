@@ -4,7 +4,7 @@ const Footer = () => {
   return (
     <footer className="bg-foreground text-background/80">
       <div className="container py-16 md:py-20">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 lg:gap-8">
           {/* Brand */}
           <div className="lg:col-span-1">
             <h3 className="font-display text-2xl text-background mb-4 tracking-wide">
@@ -31,9 +31,18 @@ const Footer = () => {
             <h4 className="text-[11px] font-medium uppercase tracking-widest mb-5 opacity-50">Support</h4>
             <ul className="space-y-3 text-sm">
               <li><Link to="/contact" className="opacity-70 hover:opacity-100 transition-opacity">Contact Us</Link></li>
-              <li><Link to="/shipping" className="opacity-70 hover:opacity-100 transition-opacity">Shipping Policy</Link></li>
+              <li><Link to="/shipping-policy" className="opacity-70 hover:opacity-100 transition-opacity">Shipping Policy</Link></li>
               <li><Link to="/returns" className="opacity-70 hover:opacity-100 transition-opacity">Returns & Refunds</Link></li>
-              <li><Link to="/faq" className="opacity-70 hover:opacity-100 transition-opacity">FAQ</Link></li>
+              <li><Link to="/about" className="opacity-70 hover:opacity-100 transition-opacity">About Us</Link></li>
+            </ul>
+          </div>
+
+          {/* Legal */}
+          <div>
+            <h4 className="text-[11px] font-medium uppercase tracking-widest mb-5 opacity-50">Legal</h4>
+            <ul className="space-y-3 text-sm">
+              <li><Link to="/privacy" className="opacity-70 hover:opacity-100 transition-opacity">Privacy Policy</Link></li>
+              <li><Link to="/terms" className="opacity-70 hover:opacity-100 transition-opacity">Terms of Service</Link></li>
             </ul>
           </div>
 
