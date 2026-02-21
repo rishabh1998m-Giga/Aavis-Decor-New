@@ -34,10 +34,10 @@ const HeroBanner = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.9, delay: 0.15, ease: "easeOut" }}
           >
-            <h1 className="font-display text-5xl md:text-6xl lg:text-7xl text-background mb-6 tracking-wide leading-[1.1]">
-              Where craft
+            <h1 className="text-5xl md:text-6xl lg:text-7xl text-background mb-6 leading-[1.2]">
+              <span className="font-display tracking-wide">Where craft</span>
               <br />
-              <span className="italic font-normal">meets elegance</span>
+              <span style={{ fontFamily: "'Pinyon Script', cursive" }} className="text-6xl md:text-7xl lg:text-8xl">meets elegance</span>
             </h1>
           </motion.div>
 
