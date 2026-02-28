@@ -2,7 +2,14 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+// Use proxy URL in production so the app works in India (Jio blocks *.supabase.co).
+const PROXY_URL = 'https://supabase-proxy.amanbhogal-work.workers.dev';
+const fromEnv = import.meta.env.VITE_SUPABASE_URL;
+const isProduction = import.meta.env.PROD;
+const isAavisdecor = typeof window !== 'undefined' && /aavisdecor\.com$/i.test(window.location.hostname);
+const SUPABASE_URL = (isProduction && isAavisdecor && (!fromEnv || fromEnv.includes('supabase.co')))
+  ? PROXY_URL
+  : (fromEnv || PROXY_URL);
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 // Import the supabase client like this:
