@@ -4,18 +4,22 @@ import { Search, User, Menu, X, ShoppingBag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
-
-const navLinks = [
-  { label: "PILLOW COVERS", href: "/category/pillow-covers" },
-  { label: "TABLE CLOTHS", href: "/category/table-cloths" },
-  { label: "CURTAINS", href: "/category/curtains" },
-  { label: "SHOP BY ROOM", href: "/collections" },
-];
+import { useCategories } from "@/hooks/useProducts";
 
 const Header = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { itemCount, setIsOpen } = useCart();
   const { user } = useAuth();
+  const { data: categories = [] } = useCategories();
+
+  const categoryNavLinks = categories.map((c) => ({
+    label: c.name.toUpperCase(),
+    href: `/category/${c.slug}`,
+  }));
+  const navLinks = [
+    ...categoryNavLinks,
+    { label: "SHOP ALL", href: "/collections" },
+  ];
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50">

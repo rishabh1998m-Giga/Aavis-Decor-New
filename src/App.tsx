@@ -21,6 +21,7 @@ import Account from "./pages/Account";
 import AccountOrders from "./pages/account/Orders";
 import AccountAddresses from "./pages/account/Addresses";
 import Collections from "./pages/Collections";
+import AllProducts from "./pages/AllProducts";
 
 // Admin
 import AdminLayout from "./pages/admin/AdminLayout";
@@ -56,6 +57,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/category/:slug" element={<Category />} />
+              <Route path="/collections" element={<AllProducts />} />
               <Route path="/collections/:slug" element={<Collections />} />
               <Route path="/product/:slug" element={<Product />} />
               <Route path="/cart" element={<Cart />} />

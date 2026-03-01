@@ -1,6 +1,9 @@
 import { Link } from "react-router-dom";
+import { useCategories } from "@/hooks/useProducts";
 
 const Footer = () => {
+  const { data: categories = [] } = useCategories();
+
   return (
     <footer className="bg-foreground text-background/80">
       <div className="container py-16 md:py-20">
@@ -19,10 +22,12 @@ const Footer = () => {
           <div>
             <h4 className="text-[11px] font-medium uppercase tracking-widest mb-5 opacity-50">Shop</h4>
             <ul className="space-y-3 text-sm">
-              <li><Link to="/category/pillow-covers" className="opacity-70 hover:opacity-100 transition-opacity">Pillow Covers</Link></li>
-              <li><Link to="/category/table-cloths" className="opacity-70 hover:opacity-100 transition-opacity">Table Cloths</Link></li>
-              <li><Link to="/category/curtains" className="opacity-70 hover:opacity-100 transition-opacity">Curtains</Link></li>
-              <li><Link to="/collections" className="opacity-70 hover:opacity-100 transition-opacity">All Collections</Link></li>
+              {categories.map((c) => (
+                <li key={c.id}>
+                  <Link to={`/category/${c.slug}`} className="opacity-70 hover:opacity-100 transition-opacity">{c.name}</Link>
+                </li>
+              ))}
+              <li><Link to="/collections" className="opacity-70 hover:opacity-100 transition-opacity">All Products</Link></li>
             </ul>
           </div>
 
