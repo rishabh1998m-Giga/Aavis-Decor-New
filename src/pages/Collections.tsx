@@ -182,6 +182,7 @@ const Collections = () => {
       <PageMeta
         title={(collectionData as Record<string, unknown>)?.title as string || slug || "Collection"}
         description={(collectionData as Record<string, unknown>)?.description as string || `Shop the ${(collectionData as Record<string, unknown>)?.title || slug} collection at Aavis Decor.`}
+        canonical={slug ? `/collections/${slug}` : "/collections"}
       />
       <div className="pt-32 pb-20">
         <div className="container mb-8">

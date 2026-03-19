@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import StoreLayout from "@/components/layout/StoreLayout";
+import PageMeta from "@/components/seo/PageMeta";
 import { useCart } from "@/contexts/CartContext";
 import { formatPrice } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ const Cart = () => {
   if (items.length === 0) {
     return (
       <StoreLayout>
+        <PageMeta title="Shopping Bag" description="Your Aavis Decor shopping bag is empty. Continue shopping for pillow covers, curtains, and home textiles." canonical="/cart" noIndex />
         <div className="pt-32 pb-20 min-h-screen">
           <div className="container max-w-lg text-center">
             <ShoppingBag className="h-20 w-20 text-foreground/20 mx-auto mb-6" />
@@ -34,6 +36,7 @@ const Cart = () => {
 
   return (
     <StoreLayout>
+      <PageMeta title="Shopping Bag" description="Review your Aavis Decor cart. Free shipping on orders above ₹999." canonical="/cart" noIndex />
       <div className="pt-32 pb-20">
         {/* Breadcrumb */}
         <div className="container mb-8">

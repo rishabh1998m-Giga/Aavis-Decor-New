@@ -135,6 +135,12 @@ export interface PaginatedResult {
   currentPage: number;
 }
 
+const normalizeSlug = (value?: string) =>
+  decodeURIComponent(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-");
+
 export const useCategories = () => {
   return useQuery({
     queryKey: ["categories"],
@@ -184,15 +190,23 @@ export const usePaginatedProducts = (params: PaginatedProductsParams = {}) => {
     ],
     queryFn: async (): Promise<PaginatedResult> => {
       let categoryId: string | null = null;
-      if (categorySlug) {
-        const catSnap = await getDocs(
-          query(
-            collection(db, "categories"),
-            where("slug", "==", categorySlug),
-            limit(1)
-          )
+      const normalizedCategorySlug = normalizeSlug(categorySlug);
+      if (normalizedCategorySlug) {
+        const activeCategoriesSnap = await getDocs(
+          query(collection(db, "categories"), where("is_active", "==", true))
         );
-        if (!catSnap.empty) categoryId = catSnap.docs[0].id;
+        const match = activeCategoriesSnap.docs.find(
+          (d) => normalizeSlug((d.data().slug as string) ?? "") === normalizedCategorySlug
+        );
+        if (match) categoryId = match.id;
+        if (!categoryId) {
+          return {
+            products: [],
+            totalCount: 0,
+            totalPages: 0,
+            currentPage: page,
+          };
+        }
       }
 
       const constraints: QueryConstraint[] = [where("is_active", "==", true)];
@@ -302,15 +316,16 @@ export const useProducts = (categorySlug?: string) => {
     queryKey: ["products", categorySlug],
     queryFn: async () => {
       let categoryId: string | null = null;
-      if (categorySlug) {
-        const catSnap = await getDocs(
-          query(
-            collection(db, "categories"),
-            where("slug", "==", categorySlug),
-            limit(1)
-          )
+      const normalizedCategorySlug = normalizeSlug(categorySlug);
+      if (normalizedCategorySlug) {
+        const activeCategoriesSnap = await getDocs(
+          query(collection(db, "categories"), where("is_active", "==", true))
         );
-        if (!catSnap.empty) categoryId = catSnap.docs[0].id;
+        const match = activeCategoriesSnap.docs.find(
+          (d) => normalizeSlug((d.data().slug as string) ?? "") === normalizedCategorySlug
+        );
+        if (match) categoryId = match.id;
+        if (!categoryId) return [];
       }
 
       const constraints: QueryConstraint[] = [

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import StoreLayout from "@/components/layout/StoreLayout";
+import PageMeta from "@/components/seo/PageMeta";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { functions, httpsCallable } from "@/integrations/firebase/config";
@@ -144,6 +145,7 @@ const Checkout = () => {
   if (items.length === 0) {
     return (
       <StoreLayout>
+        <PageMeta title="Checkout" description="Complete your Aavis Decor order." canonical="/checkout" noIndex />
         <div className="pt-32 pb-20 min-h-screen container max-w-lg text-center">
           <h1 className="font-display text-2xl mb-4">Your bag is empty</h1>
           <Button asChild><Link to="/">Continue Shopping</Link></Button>
@@ -160,6 +162,7 @@ const Checkout = () => {
 
   return (
     <StoreLayout>
+      <PageMeta title="Checkout" description="Complete your Aavis Decor order. Secure checkout with COD or UPI." canonical="/checkout" noIndex />
       <div className="pt-32 pb-20">
         <div className="container max-w-4xl">
           {/* Steps */}

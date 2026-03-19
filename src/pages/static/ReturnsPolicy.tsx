@@ -1,11 +1,17 @@
 import StoreLayout from "@/components/layout/StoreLayout";
+import PageMeta from "@/components/seo/PageMeta";
 
 const ReturnsPolicy = () => (
   <StoreLayout>
+    <PageMeta
+      title="Returns & Exchanges"
+      description="Read Aavis Decor's return window, exchange policy, and refund process for home textile orders."
+      canonical="/returns"
+    />
     <div className="pt-32 pb-20 min-h-screen">
       <div className="container max-w-3xl">
         <h1 className="font-display text-4xl mb-8">Returns & Exchanges</h1>
-        <div className="prose text-foreground/70 space-y-6">
+        <div className="prose text-foreground/80 space-y-6">
           <h2 className="font-display text-xl text-foreground">Return Window</h2>
           <p>We accept returns within 7 days of delivery for unused, unwashed items in their original packaging.</p>
 

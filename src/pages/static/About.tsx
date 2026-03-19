@@ -3,7 +3,11 @@ import PageMeta from "@/components/seo/PageMeta";
 
 const About = () => (
   <StoreLayout>
-    <PageMeta title="About Us" description="Learn about Aavis Decor — our story, mission, and commitment to quality handcrafted home textiles." />
+    <PageMeta
+      title="About Us"
+      description="Learn about Aavis Decor — our story, mission, and commitment to quality handcrafted home textiles."
+      canonical="/about"
+    />
     <div className="pt-32 pb-20 min-h-screen">
       <div className="container max-w-3xl">
         <h1 className="font-display text-4xl mb-8">Our Story</h1>

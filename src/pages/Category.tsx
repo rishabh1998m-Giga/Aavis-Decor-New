@@ -10,12 +10,19 @@ import PageMeta from "@/components/seo/PageMeta";
 
 const PAGE_SIZE = 20;
 
+const normalizeSlug = (value?: string) =>
+  decodeURIComponent(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-");
+
 const Category = () => {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: categories = [], isLoading: categoriesLoading } = useCategories();
-  const category = categories.find((c) => c.slug === slug);
-  const slugNotFound = Boolean(slug && !categoriesLoading && categories.length > 0 && !category);
+  const normalizedSlug = normalizeSlug(slug);
+  const category = categories.find((c) => normalizeSlug(c.slug) === normalizedSlug);
+  const slugNotFound = Boolean(normalizedSlug && !categoriesLoading && categories.length > 0 && !category);
 
   const page = Number(searchParams.get("page") || "1");
 
@@ -31,7 +38,7 @@ const Category = () => {
   const { data, isLoading } = usePaginatedProducts({
     page,
     pageSize: PAGE_SIZE,
-    categorySlug: slug,
+    categorySlug: normalizedSlug,
     sortBy: filters.sortBy,
     colors: filters.colors.length > 0 ? filters.colors : undefined,
     sizes: filters.sizes.length > 0 ? filters.sizes : undefined,
@@ -87,7 +94,8 @@ const Category = () => {
     <StoreLayout>
       <PageMeta
         title={category?.name || slug || "Category"}
-        description={category?.description || `Browse ${category?.name || slug} at Aavis Decor. Premium home textiles.`}
+        description={category?.description || `Browse ${category?.name || normalizedSlug} at Aavis Decor. Premium home textiles.`}
+        canonical={normalizedSlug ? `/category/${normalizedSlug}` : "/collections"}
       />
       <div className="pt-32 pb-20">
         {/* Breadcrumb */}
@@ -95,14 +103,14 @@ const Category = () => {
           <nav className="flex items-center gap-2 text-xs text-foreground/50">
             <Link to="/" className="hover:text-foreground transition-colors">Home</Link>
             <ChevronRight className="h-3 w-3" />
-            <span className="text-foreground">{category?.name || slug}</span>
+            <span className="text-foreground">{category?.name || normalizedSlug}</span>
           </nav>
         </div>
 
         {/* Header */}
         <div className="container mb-10">
           <h1 className="font-display text-3xl lg:text-4xl text-foreground mb-3">
-            {category?.name || slug}
+            {category?.name || normalizedSlug}
           </h1>
           {category?.description && (
             <p className="text-foreground/60 max-w-2xl">{category.description}</p>

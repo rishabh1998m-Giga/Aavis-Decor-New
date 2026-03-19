@@ -132,6 +132,7 @@ const Product = () => {
         description={product.shortDescription || product.description?.slice(0, 155) || `Buy ${product.name} at Aavis Decor`}
         ogImage={primaryImage?.url}
         ogType="product"
+        canonical={`/product/${product.slug}`}
         jsonLd={productJsonLd}
       />
       <div className="pt-32 pb-20">

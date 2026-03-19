@@ -21,6 +21,7 @@ const Index = () => {
       <PageMeta
         title="Aavis Decor"
         description="Shop premium handcrafted pillow covers, curtains, table cloths and home textiles. Quality fabrics, elegant designs, free shipping across India."
+        canonical="/"
         jsonLd={jsonLd}
       />
       <HeroBanner />

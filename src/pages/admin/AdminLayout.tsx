@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
 import AuthGuard from "@/components/auth/AuthGuard";
+import PageMeta from "@/components/seo/PageMeta";
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Settings, ChevronLeft, Tag, Layers, Percent,
 } from "lucide-react";
@@ -17,9 +18,17 @@ const adminLinks = [
 
 const AdminLayout = () => {
   const location = useLocation();
+  const currentLink = adminLinks.find((link) => location.pathname === link.href);
+  const currentTitle = currentLink ? `${currentLink.label} Admin` : "Admin Panel";
 
   return (
     <AuthGuard requireAdmin>
+      <PageMeta
+        title={currentTitle}
+        description="Internal Aavis Decor admin panel."
+        canonical={location.pathname}
+        noIndex
+      />
       <div className="flex min-h-screen bg-background">
         <aside className="w-64 border-r border-border/30 bg-muted/30 flex flex-col">
           <div className="p-6 border-b border-border/30">

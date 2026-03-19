@@ -24,7 +24,11 @@ const Contact = () => {
 
   return (
     <StoreLayout>
-      <PageMeta title="Contact Us" description="Get in touch with Aavis Decor. We'd love to hear from you about our home textiles, orders, or custom requirements." />
+      <PageMeta
+        title="Contact Us"
+        description="Get in touch with Aavis Decor. We'd love to hear from you about our home textiles, orders, or custom requirements."
+        canonical="/contact"
+      />
       <div className="pt-32 pb-20 min-h-screen">
         <div className="container max-w-4xl">
           <h1 className="font-display text-4xl mb-4 text-center">Get In Touch</h1>

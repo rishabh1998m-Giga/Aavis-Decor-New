@@ -66,8 +66,9 @@ const AllProducts = () => {
   return (
     <StoreLayout>
       <PageMeta
-        title="All Products | Aavis Decor"
+        title="All Products"
         description="Shop all premium handcrafted pillow covers, curtains, table linens and home textiles at Aavis Decor."
+        canonical="/collections"
       />
       <div className="pt-32 pb-20">
         <div className="container mb-8">
