@@ -1,11 +1,12 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { useCategories } from "@/hooks/useProducts";
+import { useCategories, useCategoryImages } from "@/hooks/useProducts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowRight } from "lucide-react";
 
 const CategoryShowcase = () => {
   const { data: categories = [], isLoading } = useCategories();
+  const { data: imageMap = new Map<string, string>() } = useCategoryImages(categories);
 
   return (
     <section className="py-24 md:py-32">
@@ -61,9 +62,9 @@ const CategoryShowcase = () => {
                 >
                   <Link to={`/category/${cat.slug}`} className="group block relative">
                     <div className="aspect-[3/4] bg-muted overflow-hidden relative">
-                      {cat.imageUrl ? (
+                      {(cat.imageUrl || imageMap.get(cat.id)) ? (
                         <img
-                          src={cat.imageUrl}
+                          src={cat.imageUrl || imageMap.get(cat.id)!}
                           alt={cat.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                         />

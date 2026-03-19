@@ -35,6 +35,15 @@ const Category = () => {
     inStockOnly: false,
   });
 
+  const handleFiltersChange = (newFilters: FilterState) => {
+    setFilters(newFilters);
+    setSearchParams((prev) => {
+      const p = new URLSearchParams(prev);
+      p.set("page", "1");
+      return p;
+    });
+  };
+
   const { data, isLoading } = usePaginatedProducts({
     page,
     pageSize: PAGE_SIZE,
@@ -122,7 +131,7 @@ const Category = () => {
           <div className="flex gap-10">
             <ProductFilters
               filters={filters}
-              onFiltersChange={setFilters}
+              onFiltersChange={handleFiltersChange}
               availableColors={availableColors}
               availableSizes={availableSizes}
               availableFabrics={availableFabrics}

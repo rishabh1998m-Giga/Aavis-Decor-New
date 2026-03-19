@@ -14,6 +14,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -95,19 +96,20 @@ const FiltersContent = ({
     <div className="space-y-0">
       {/* Sort */}
       <FilterSection title="SORT BY">
-        <div className="space-y-2">
+        <RadioGroup
+          value={filters.sortBy}
+          onValueChange={(value) => onFiltersChange({ ...filters, sortBy: value })}
+          className="space-y-2"
+        >
           {sortOptions.map((option) => (
             <label key={option.value} className="flex items-center gap-3 cursor-pointer group">
-              <Checkbox
-                checked={filters.sortBy === option.value}
-                onCheckedChange={() => onFiltersChange({ ...filters, sortBy: option.value })}
-              />
+              <RadioGroupItem value={option.value} id={`sort-${option.value}`} />
               <span className="text-sm text-foreground/70 group-hover:text-foreground">
                 {option.label}
               </span>
             </label>
           ))}
-        </div>
+        </RadioGroup>
       </FilterSection>
 
       {/* Availability */}
@@ -124,26 +126,24 @@ const FiltersContent = ({
       {/* Fabric */}
       {availableFabrics.length > 0 && (
         <FilterSection title="FABRIC">
-          <div className="space-y-2">
+          <RadioGroup
+            value={filters.fabric || "__all__"}
+            onValueChange={(value) =>
+              onFiltersChange({ ...filters, fabric: value === "__all__" ? "" : value })
+            }
+            className="space-y-2"
+          >
             <label className="flex items-center gap-3 cursor-pointer group">
-              <Checkbox
-                checked={filters.fabric === ""}
-                onCheckedChange={() => onFiltersChange({ ...filters, fabric: "" })}
-              />
+              <RadioGroupItem value="__all__" id="fabric-all" />
               <span className="text-sm text-foreground/70 group-hover:text-foreground">All</span>
             </label>
             {availableFabrics.map((fab) => (
               <label key={fab} className="flex items-center gap-3 cursor-pointer group">
-                <Checkbox
-                  checked={filters.fabric === fab}
-                  onCheckedChange={() =>
-                    onFiltersChange({ ...filters, fabric: filters.fabric === fab ? "" : fab })
-                  }
-                />
+                <RadioGroupItem value={fab} id={`fabric-${fab}`} />
                 <span className="text-sm text-foreground/70 group-hover:text-foreground">{fab}</span>
               </label>
             ))}
-          </div>
+          </RadioGroup>
         </FilterSection>
       )}
 

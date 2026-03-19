@@ -160,6 +160,48 @@ export const useCategories = () => {
   });
 };
 
+/** Fetches representative image URL per category (from first product when category has no image_url). */
+export const useCategoryImages = (categories: Category[]) => {
+  const needImage = categories.filter((c) => !c.imageUrl);
+  return useQuery({
+    queryKey: ["category-images", needImage.map((c) => c.id)],
+    queryFn: async (): Promise<Map<string, string>> => {
+      const map = new Map<string, string>();
+      if (needImage.length === 0) return map;
+
+      const results = await Promise.all(
+        needImage.map(async (cat) => {
+          const productsSnap = await getDocs(
+            query(
+              collection(db, "products"),
+              where("is_active", "==", true),
+              where("category_id", "==", cat.id),
+              orderBy("created_at", "desc"),
+              limit(1)
+            )
+          );
+          if (productsSnap.empty) return { catId: cat.id, url: null as string | null };
+          const productId = productsSnap.docs[0].id;
+          const imagesSnap = await getDocs(
+            query(
+              collection(db, "product_images"),
+              where("product_id", "==", productId)
+            )
+          );
+          const sorted = imagesSnap.docs
+            .map((d) => ({ ...d.data(), sortOrder: d.data().sort_order ?? 0 }))
+            .sort((a, b) => (a.sortOrder as number) - (b.sortOrder as number));
+          const url = sorted[0]?.url;
+          return { catId: cat.id, url };
+        })
+      );
+      results.forEach((r) => { if (r.url) map.set(r.catId, r.url); });
+      return map;
+    },
+    enabled: needImage.length > 0,
+  });
+};
+
 export const usePaginatedProducts = (params: PaginatedProductsParams = {}) => {
   const {
     page = 1,
@@ -215,8 +257,19 @@ export const usePaginatedProducts = (params: PaginatedProductsParams = {}) => {
       if (priceMin != null) constraints.push(where("base_price", ">=", priceMin));
       if (priceMax != null) constraints.push(where("base_price", "<=", priceMax));
 
-      const orderField = sortBy === "price-low" || sortBy === "price-high" ? "base_price" : "created_at";
-      const orderDir = sortBy === "price-low" ? "asc" : "desc";
+      const hasPriceFilter = priceMin != null || priceMax != null;
+      const orderField =
+        hasPriceFilter || sortBy === "price-low" || sortBy === "price-high"
+          ? "base_price"
+          : sortBy === "name"
+            ? "name"
+            : "created_at";
+      const orderDir =
+        sortBy === "price-high"
+          ? "desc"
+          : sortBy === "price-low" || sortBy === "name"
+            ? "asc"
+            : "desc";
       constraints.push(orderBy(orderField, orderDir));
 
       const productsQuery = query(collection(db, "products"), ...constraints);
