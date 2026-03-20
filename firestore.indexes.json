@@ -123,6 +123,14 @@
         { "fieldPath": "user_id", "order": "ASCENDING" },
         { "fieldPath": "is_default", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "products",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "slug_aliases", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "is_active", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

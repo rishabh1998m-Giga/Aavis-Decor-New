@@ -27,3 +27,4 @@ products.json
 service-account.json
 .env
 .env.local
+scripts/reports/

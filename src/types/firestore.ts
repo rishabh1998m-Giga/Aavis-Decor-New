@@ -44,6 +44,7 @@ export interface ProductRow {
   category_id: string | null;
   name: string;
   slug: string;
+  slug_aliases?: string[];
   description: string | null;
   short_description: string | null;
   design_name: string | null;

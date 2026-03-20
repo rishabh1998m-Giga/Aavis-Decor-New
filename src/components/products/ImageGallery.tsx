@@ -76,7 +76,7 @@ const ImageGallery = ({ images, productName }: ImageGalleryProps) => {
               <img
                 src={image.url}
                 alt={image.altText || `${productName} ${index + 1}`}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
                 loading="lazy"
               />
             </button>
@@ -103,7 +103,7 @@ const ImageGallery = ({ images, productName }: ImageGalleryProps) => {
                     x: { type: "spring", stiffness: 300, damping: 30 },
                     opacity: { duration: 0.2 },
                   }}
-                  className="absolute inset-0 w-full h-full object-cover"
+                  className="absolute inset-0 w-full h-full object-contain"
                 />
               </AnimatePresence>
               

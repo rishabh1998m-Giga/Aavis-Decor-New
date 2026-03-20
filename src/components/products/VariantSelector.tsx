@@ -1,5 +1,6 @@
 import { ProductVariant } from "@/hooks/useProducts";
 import { cn } from "@/lib/utils";
+import { getColorForSwatch } from "@/lib/colorMap";
 
 interface VariantSelectorProps {
   variants: ProductVariant[];
@@ -81,7 +82,7 @@ const VariantSelector = ({ variants, selectedVariant, onSelect }: VariantSelecto
                       : "border-border/50 hover:border-foreground/50",
                     !available && "opacity-40 cursor-not-allowed"
                   )}
-                  style={{ backgroundColor: color.toLowerCase() }}
+                  style={{ backgroundColor: getColorForSwatch(color) }}
                   title={color}
                 >
                   {!available && (

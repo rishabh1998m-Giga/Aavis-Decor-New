@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import StoreLayout from "@/components/layout/StoreLayout";
 import ImageGallery from "@/components/products/ImageGallery";
@@ -8,7 +8,7 @@ import PincodeChecker from "@/components/shared/PincodeChecker";
 import ProductGrid from "@/components/products/ProductGrid";
 import { useProduct, useProducts, ProductVariant } from "@/hooks/useProducts";
 import { useCart } from "@/contexts/CartContext";
-import { doc, getDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/integrations/firebase/config";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,9 +39,18 @@ const Product = () => {
     }
   }, [product]);
 
+  const displayedImages = useMemo(() => {
+    if (!product?.images.length) return [];
+    const variantImages = selectedVariant
+      ? product.images.filter((img) => !img.variantId || img.variantId === selectedVariant.id)
+      : product.images.filter((img) => !img.variantId);
+    return variantImages.length > 0 ? variantImages : product.images;
+  }, [product?.images, selectedVariant?.id]);
+
+  const primaryImage = displayedImages.find((img) => img.isPrimary) || displayedImages[0];
+
   const handleAddToCart = () => {
     if (!product || !selectedVariant) return;
-    const primaryImage = product.images.find((img) => img.isPrimary) || product.images[0];
     addItem({
       productId: product.id,
       productSlug: product.slug,
@@ -78,6 +87,24 @@ const Product = () => {
     });
     return () => { cancelled = true; };
   }, [slug, isLoading, product, navigate]);
+
+  // When product not found by slug, check slug_aliases (e.g. after merge) and redirect to canonical URL
+  useEffect(() => {
+    if (isLoading || product || !slug || !error) return;
+    let cancelled = false;
+    getDocs(
+      query(
+        collection(db, "products"),
+        where("slug_aliases", "array-contains", slug),
+        where("is_active", "==", true)
+      )
+    ).then((snap) => {
+      if (cancelled || snap.empty) return;
+      const productSlug = snap.docs[0].data()?.slug;
+      if (productSlug) navigate(`/product/${productSlug}`, { replace: true });
+    });
+    return () => { cancelled = true; };
+  }, [slug, isLoading, product, error, navigate]);
 
   if (isLoading) {
     return (
@@ -156,7 +183,7 @@ const Product = () => {
         {/* Product Details */}
         <div className="container">
           <div className="grid lg:grid-cols-2 gap-10 lg:gap-16">
-            <ImageGallery images={product.images} productName={product.name} />
+            <ImageGallery images={displayedImages} productName={product.name} />
 
             <div className="lg:py-4">
               {product.designName && (

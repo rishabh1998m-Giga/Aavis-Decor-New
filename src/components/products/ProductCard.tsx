@@ -4,6 +4,7 @@ import { ProductWithDetails } from "@/hooks/useProducts";
 import { formatPrice } from "@/lib/formatters";
 import { useCart } from "@/contexts/CartContext";
 import { cn } from "@/lib/utils";
+import { getColorForSwatch } from "@/lib/colorMap";
 
 interface ProductCardProps {
   product: ProductWithDetails;
@@ -56,7 +57,7 @@ const ProductCard = ({ product, index = 0 }: ProductCardProps) => {
             src={primaryImage?.url || "/placeholder.svg"}
             alt={primaryImage?.altText || product.name}
             className={cn(
-              "w-full h-full object-cover transition-opacity duration-500",
+              "w-full h-full object-contain transition-opacity duration-500",
               hoverImage ? "group-hover:opacity-0" : ""
             )}
             loading="lazy"
@@ -67,7 +68,7 @@ const ProductCard = ({ product, index = 0 }: ProductCardProps) => {
             <img
               src={hoverImage.url}
               alt={hoverImage.altText || product.name}
-              className="absolute inset-0 w-full h-full object-cover opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+              className="absolute inset-0 w-full h-full object-contain opacity-0 group-hover:opacity-100 transition-opacity duration-500"
               loading="lazy"
             />
           )}
@@ -127,7 +128,7 @@ const ProductCard = ({ product, index = 0 }: ProductCardProps) => {
                   <div
                     key={i}
                     className="w-3 h-3 rounded-full border border-border/50"
-                    style={{ backgroundColor: color?.toLowerCase() }}
+                    style={{ backgroundColor: getColorForSwatch(color) }}
                     title={color ?? ""}
                   />
                 ))}
