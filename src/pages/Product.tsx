@@ -32,11 +32,13 @@ const Product = () => {
   const [quantity, setQuantity] = useState(1);
 
   useEffect(() => {
-    if (product?.variants.length) {
-      const defaultVariant = product.variants.find((v) => v.isActive && v.stockQuantity > 0) || product.variants[0];
-      setSelectedVariant(defaultVariant);
-      setQuantity(1);
-    }
+    if (!product?.variants.length) return;
+    const defaultVariant = product.variants.find((v) => v.isActive && v.stockQuantity > 0) || product.variants[0];
+    setSelectedVariant((prev) => {
+      if (prev && product.variants.some((v) => v.id === prev.id)) return prev;
+      return defaultVariant;
+    });
+    setQuantity(1);
   }, [product]);
 
   const displayedImages = useMemo(() => {
@@ -136,7 +138,6 @@ const Product = () => {
     );
   }
 
-  const primaryImage = product.images.find((img) => img.isPrimary) || product.images[0];
   const productJsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",

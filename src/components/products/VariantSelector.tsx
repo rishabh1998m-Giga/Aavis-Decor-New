@@ -8,6 +8,8 @@ interface VariantSelectorProps {
   onSelect: (variant: ProductVariant) => void;
 }
 
+const norm = (s: string | null | undefined) => (s || "").toString().trim().toLowerCase();
+
 const VariantSelector = ({ variants, selectedVariant, onSelect }: VariantSelectorProps) => {
   // Extract unique colors and sizes
   const colors = [...new Set(variants.map((v) => v.color).filter(Boolean))] as string[];
@@ -19,8 +21,8 @@ const VariantSelector = ({ variants, selectedVariant, onSelect }: VariantSelecto
   // Find variant matching selected options
   const findVariant = (color?: string, size?: string) => {
     return variants.find((v) => {
-      const colorMatch = !colors.length || v.color === color;
-      const sizeMatch = !sizes.length || v.size === size;
+      const colorMatch = !colors.length || norm(v.color) === norm(color);
+      const sizeMatch = !sizes.length || norm(v.size) === norm(size);
       return colorMatch && sizeMatch && v.isActive;
     });
   };
@@ -38,15 +40,15 @@ const VariantSelector = ({ variants, selectedVariant, onSelect }: VariantSelecto
   // Check if a combination is available
   const isColorAvailable = (color: string) => {
     return variants.some(
-      (v) => v.color === color && v.isActive && v.stockQuantity > 0
+      (v) => norm(v.color) === norm(color) && v.isActive && v.stockQuantity > 0
     );
   };
 
   const isSizeAvailable = (size: string) => {
     return variants.some(
       (v) =>
-        v.size === size &&
-        (!selectedColor || v.color === selectedColor) &&
+        norm(v.size) === norm(size) &&
+        (!selectedColor || norm(v.color) === norm(selectedColor)) &&
         v.isActive &&
         v.stockQuantity > 0
     );
@@ -72,12 +74,13 @@ const VariantSelector = ({ variants, selectedVariant, onSelect }: VariantSelecto
               const available = isColorAvailable(color);
               return (
                 <button
+                  type="button"
                   key={color}
                   onClick={() => handleColorSelect(color)}
                   disabled={!available}
                   className={cn(
                     "w-10 h-10 rounded-full border-2 transition-all relative",
-                    selectedColor === color
+                    norm(selectedColor) === norm(color)
                       ? "border-foreground scale-110"
                       : "border-border/50 hover:border-foreground/50",
                     !available && "opacity-40 cursor-not-allowed"
@@ -102,7 +105,7 @@ const VariantSelector = ({ variants, selectedVariant, onSelect }: VariantSelecto
         <div>
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs tracking-widest text-foreground/70">SIZE</span>
-            <button className="text-xs text-foreground/50 underline hover:text-foreground">
+            <button type="button" className="text-xs text-foreground/50 underline hover:text-foreground">
               Size Guide
             </button>
           </div>
@@ -111,12 +114,13 @@ const VariantSelector = ({ variants, selectedVariant, onSelect }: VariantSelecto
               const available = isSizeAvailable(size);
               return (
                 <button
+                  type="button"
                   key={size}
                   onClick={() => handleSizeSelect(size)}
                   disabled={!available}
                   className={cn(
                     "min-w-[60px] px-4 py-2.5 text-xs border transition-colors",
-                    selectedSize === size
+                    norm(selectedSize) === norm(size)
                       ? "bg-foreground text-background border-foreground"
                       : "border-border/50 text-foreground/70 hover:border-foreground",
                     !available && "opacity-40 cursor-not-allowed line-through"
