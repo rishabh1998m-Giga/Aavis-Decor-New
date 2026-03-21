@@ -92,18 +92,20 @@ const VariantSelector = ({ variants, selectedVariant, onSelect }: VariantSelecto
           <div className="flex flex-wrap gap-2">
             {colors.map((color) => {
               const available = isColorAvailable(color);
+              const variant = findVariant(color, selectedSize) || findVariant(color, undefined);
+              const canSelect = !!variant;
               return (
                 <button
                   type="button"
                   key={color}
-                  onClick={() => handleColorSelect(color)}
-                  disabled={!available}
+                  onClick={() => canSelect && handleColorSelect(color)}
+                  disabled={!canSelect}
                   className={cn(
                     "w-10 h-10 rounded-full border-2 transition-all relative",
                     norm(selectedColor) === norm(color)
                       ? "border-foreground scale-110"
                       : "border-border/50 hover:border-foreground/50",
-                    !available && "opacity-40 cursor-not-allowed"
+                    !available && "opacity-60"
                   )}
                   style={{ backgroundColor: getColorForSwatch(color) }}
                   title={color}
@@ -132,12 +134,14 @@ const VariantSelector = ({ variants, selectedVariant, onSelect }: VariantSelecto
           <div className="flex flex-wrap gap-2">
             {sizes.map((size) => {
               const available = isSizeAvailable(size);
+              const variant = findVariant(selectedColor, size) || findVariant(undefined, size);
+              const canSelect = !!variant;
               return (
                 <button
                   type="button"
                   key={size}
-                  onClick={() => handleSizeSelect(size)}
-                  disabled={!available}
+                  onClick={() => canSelect && handleSizeSelect(size)}
+                  disabled={!canSelect}
                   className={cn(
                     "min-w-[60px] px-4 py-2.5 text-xs border transition-colors",
                     norm(selectedSize) === norm(size) || normSize(selectedSize) === normSize(size)

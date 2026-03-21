@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, ZoomIn } from "lucide-react";
 import { ProductImage } from "@/hooks/useProducts";
@@ -19,6 +19,10 @@ const ImageGallery = ({ images, productName }: ImageGalleryProps) => {
   const [direction, setDirection] = useState(0);
 
   const sortedImages = [...images].sort((a, b) => a.sortOrder - b.sortOrder);
+
+  useEffect(() => {
+    setCurrentIndex(0);
+  }, [images]);
   const currentImage = sortedImages[currentIndex] || { url: "/placeholder.svg", altText: productName };
 
   const goTo = (index: number) => {
