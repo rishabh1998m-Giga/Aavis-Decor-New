@@ -12,9 +12,11 @@ import {
 interface ImageGalleryProps {
   images: ProductImage[];
   productName: string;
+  /** Shown when there are no images for the current variant (e.g. color name). */
+  emptyLabel?: string | null;
 }
 
-const ImageGallery = ({ images, productName }: ImageGalleryProps) => {
+const ImageGallery = ({ images, productName, emptyLabel }: ImageGalleryProps) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(0);
 
@@ -24,6 +26,18 @@ const ImageGallery = ({ images, productName }: ImageGalleryProps) => {
     setCurrentIndex(0);
   }, [images]);
   const currentImage = sortedImages[currentIndex] || { url: "/placeholder.svg", altText: productName };
+
+  if (sortedImages.length === 0) {
+    return (
+      <div className="relative aspect-[3/4] bg-muted flex flex-col items-center justify-center gap-3 px-6 text-center border border-border/30">
+        <p className="text-sm text-foreground/60 max-w-sm">
+          {emptyLabel
+            ? `No photos are linked to “${emptyLabel}” yet. Images may still be assigned in our catalog — try another color or size.`
+            : "No photos available for this product."}
+        </p>
+      </div>
+    );
+  }
 
   const goTo = (index: number) => {
     setDirection(index > currentIndex ? 1 : -1);

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { ProductVariant } from "@/hooks/useProducts";
 import { cn } from "@/lib/utils";
 import { getColorForSwatch } from "@/lib/colorMap";
@@ -21,9 +22,28 @@ const normSize = (s: string | null | undefined) =>
     .trim();
 
 const VariantSelector = ({ variants, selectedVariant, onSelect }: VariantSelectorProps) => {
-  // Extract unique colors and sizes
-  const colors = [...new Set(variants.map((v) => v.color).filter(Boolean))] as string[];
-  const sizes = [...new Set(variants.map((v) => v.size).filter(Boolean))] as string[];
+  /** Dedupe by normalized value so "Light Brown" / "light brown" don't render twice. */
+  const colors = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const v of variants) {
+      const c = v.color;
+      if (!c?.trim()) continue;
+      const k = norm(c);
+      if (!seen.has(k)) seen.set(k, c.trim());
+    }
+    return [...seen.values()];
+  }, [variants]);
+
+  const sizes = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const v of variants) {
+      const s = v.size;
+      if (!s?.trim()) continue;
+      const k = normSize(s);
+      if (!seen.has(k)) seen.set(k, s.trim());
+    }
+    return [...seen.values()];
+  }, [variants]);
 
   const selectedColor = selectedVariant?.color;
   const selectedSize = selectedVariant?.size;

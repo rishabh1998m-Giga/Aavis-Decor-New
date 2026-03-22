@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { ChevronRight, Minus, Plus, ShoppingBag, Heart, Share2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import PageMeta from "@/components/seo/PageMeta";
+import { resolveDisplayedImages } from "@/lib/productImages";
 
 const Product = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -43,11 +44,8 @@ const Product = () => {
 
   const displayedImages = useMemo(() => {
     if (!product?.images.length) return [];
-    const variantImages = selectedVariant
-      ? product.images.filter((img) => !img.variantId || img.variantId === selectedVariant.id)
-      : product.images.filter((img) => !img.variantId);
-    return variantImages.length > 0 ? variantImages : product.images;
-  }, [product?.images, selectedVariant?.id]);
+    return resolveDisplayedImages(product.images, selectedVariant);
+  }, [product?.images, selectedVariant]);
 
   const primaryImage = displayedImages.find((img) => img.isPrimary) || displayedImages[0];
 
@@ -184,7 +182,11 @@ const Product = () => {
         {/* Product Details */}
         <div className="container">
           <div className="grid lg:grid-cols-2 gap-10 lg:gap-16">
-            <ImageGallery images={displayedImages} productName={product.name} />
+            <ImageGallery
+              images={displayedImages}
+              productName={product.name}
+              emptyLabel={selectedVariant?.color}
+            />
 
             <div className="lg:py-4">
               {product.designName && (
