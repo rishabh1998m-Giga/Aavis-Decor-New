@@ -59,7 +59,7 @@ const Cart = () => {
             <div className="lg:col-span-2 space-y-4">
               {items.map((item) => (
                 <div
-                  key={item.variantId}
+                  key={item.lineId}
                   className="flex gap-6 p-4 border border-border/30 rounded-md"
                 >
                   {/* Image */}
@@ -92,7 +92,7 @@ const Cart = () => {
                         </p>
                       </div>
                       <button
-                        onClick={() => removeItem(item.variantId)}
+                        onClick={() => removeItem(item.lineId)}
                         className="text-foreground/40 hover:text-foreground p-2 self-start"
                       >
                         <X className="h-5 w-5" />
@@ -104,7 +104,7 @@ const Cart = () => {
                       <div className="flex items-center border border-border/50">
                         <button
                           onClick={() =>
-                            updateQuantity(item.variantId, item.quantity - 1)
+                            updateQuantity(item.lineId, item.quantity - 1)
                           }
                           className="p-2 hover:bg-muted transition-colors"
                         >
@@ -115,7 +115,7 @@ const Cart = () => {
                         </span>
                         <button
                           onClick={() =>
-                            updateQuantity(item.variantId, item.quantity + 1)
+                            updateQuantity(item.lineId, item.quantity + 1)
                           }
                           className="p-2 hover:bg-muted transition-colors"
                           disabled={item.quantity >= item.maxStock}

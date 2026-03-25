@@ -7,6 +7,26 @@ initializeApp();
 setGlobalOptions({ region: "asia-south1" });
 const db = getFirestore();
 
+const MAX_CUSTOM_CURTAIN_SIZE = 200;
+
+function sanitizeCustomCurtainSize(raw) {
+  if (raw == null || typeof raw !== "string") return "";
+  const t = raw.trim().slice(0, MAX_CUSTOM_CURTAIN_SIZE);
+  return t
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function resolveGstRate(product, categorySlugById) {
+  const raw = product?.gst_rate;
+  const n = raw != null && raw !== "" ? Number(raw) : NaN;
+  if (Number.isFinite(n)) return n;
+  const slug = product?.category_id ? categorySlugById.get(String(product.category_id)) : null;
+  if (slug === "pillow-covers" || slug === "table-linens") return 5;
+  return 18;
+}
+
 function isAdmin(token) {
   return token && (token.role === "admin" || token.admin === true);
 }
@@ -92,6 +112,27 @@ export const createOrder = onCall({ cors: true }, async (request) => {
     if (productIds.has(d.id)) productMap.set(d.id, { id: d.id, ...d.data() });
   });
 
+  const categoryIds = [
+    ...new Set(
+      [...productMap.values()]
+        .map((p) => p.category_id)
+        .filter((id) => id != null && String(id).length > 0)
+        .map((id) => String(id))
+    ),
+  ];
+  const categorySlugById = new Map();
+  for (let i = 0; i < categoryIds.length; i += 10) {
+    const batch = categoryIds.slice(i, i + 10);
+    const refs = batch.map((id) => db.collection("categories").doc(id));
+    const snaps = await db.getAll(...refs);
+    snaps.forEach((snap) => {
+      if (snap.exists) {
+        const slug = snap.data().slug;
+        if (slug) categorySlugById.set(snap.id, String(slug));
+      }
+    });
+  }
+
   const decrementBatch = async () => {
     return db.runTransaction(async (tx) => {
       for (const item of items) {
@@ -121,14 +162,17 @@ export const createOrder = onCall({ cors: true }, async (request) => {
     const variant = variantMap.get(item.variantId);
     const product = productMap.get(variant.product_id);
     const lineTotal = Number(variant.price) * (Number(item.quantity) || 1);
-    const gstRate = Number(product?.gst_rate ?? 18);
+    const gstRate = resolveGstRate(product, categorySlugById);
     const gstAmount = Math.round((lineTotal * gstRate) / (100 + gstRate));
     subtotal += lineTotal;
+    const custom = sanitizeCustomCurtainSize(item.customCurtainSize);
+    const baseVariantInfo = [variant.color, variant.size].filter(Boolean).join(" / ") || "Default";
+    const variantInfo = custom ? `${baseVariantInfo} / Custom: ${custom}` : baseVariantInfo;
     orderItems.push({
       product_id: variant.product_id,
       variant_id: item.variantId,
       product_name: product?.name || "Unknown",
-      variant_info: [variant.color, variant.size].filter(Boolean).join(" / ") || "Default",
+      variant_info: variantInfo,
       sku: variant.sku,
       quantity: Number(item.quantity) || 1,
       unit_price: Number(variant.price),

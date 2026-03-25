@@ -1,7 +1,6 @@
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "@/integrations/firebase/config";
+import { apiJson } from "@/lib/api";
 import StoreLayout from "@/components/layout/StoreLayout";
 import { formatPrice, formatDate } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
@@ -14,17 +13,13 @@ const OrderConfirmation = () => {
     queryKey: ["order", orderNumber],
     queryFn: async () => {
       if (!orderNumber) return null;
-      const ordersSnap = await getDocs(
-        query(collection(db, "orders"), where("order_number", "==", orderNumber))
-      );
-      if (ordersSnap.empty) return null;
-      const orderDoc = ordersSnap.docs[0];
-      const orderData = { id: orderDoc.id, ...orderDoc.data() };
-      const itemsSnap = await getDocs(
-        query(collection(db, "order_items"), where("order_id", "==", orderDoc.id))
-      );
-      const order_items = itemsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      return { ...orderData, order_items };
+      try {
+        return await apiJson<Record<string, unknown> & { order_items?: unknown[] }>(
+          `/api/orders/by-number/${encodeURIComponent(orderNumber)}`
+        );
+      } catch {
+        return null;
+      }
     },
     enabled: !!orderNumber,
   });

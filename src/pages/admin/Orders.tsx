@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { collection, query, orderBy, getDocs, where, doc, updateDoc } from "firebase/firestore";
-import { db } from "@/integrations/firebase/config";
+import { apiJson } from "@/lib/api";
 import { formatPrice, formatDate } from "@/lib/formatters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,32 +43,15 @@ const AdminOrders = () => {
 
   const { data: orders = [] } = useQuery({
     queryKey: ["admin-orders"],
-    queryFn: async () => {
-      const ordersQuery = query(
-        collection(db, "orders"),
-        orderBy("created_at", "desc")
-      );
-      const ordersSnap = await getDocs(ordersQuery);
-      const ordersList = ordersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      const withItems = await Promise.all(
-        ordersList.map(async (order: Record<string, unknown>) => {
-          const itemsSnap = await getDocs(
-            query(
-              collection(db, "order_items"),
-              where("order_id", "==", order.id)
-            )
-          );
-          const order_items = itemsSnap.docs.map((di) => ({ id: di.id, ...di.data() }));
-          return { ...order, order_items };
-        })
-      );
-      return withItems;
-    },
+    queryFn: async () => apiJson<Record<string, unknown>[]>("/api/admin/orders"),
   });
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      await updateDoc(doc(db, "orders", id), { status });
+      await apiJson(`/api/admin/orders/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
@@ -79,7 +61,10 @@ const AdminOrders = () => {
 
   const updateFulfillmentMutation = useMutation({
     mutationFn: async ({ id, fulfillmentStatus }: { id: string; fulfillmentStatus: string }) => {
-      await updateDoc(doc(db, "orders", id), { fulfillment_status: fulfillmentStatus });
+      await apiJson(`/api/admin/orders/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ fulfillment_status: fulfillmentStatus }),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
@@ -90,10 +75,13 @@ const AdminOrders = () => {
   const saveTrackingMutation = useMutation({
     mutationFn: async () => {
       if (!trackingOrderId) return;
-      await updateDoc(doc(db, "orders", trackingOrderId), {
-        tracking_number: trackingNumber || null,
-        tracking_url: trackingUrl || null,
-        fulfillment_status: "fulfilled",
+      await apiJson(`/api/admin/orders/${encodeURIComponent(trackingOrderId)}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          tracking_number: trackingNumber || null,
+          tracking_url: trackingUrl || null,
+          fulfillment_status: "fulfilled",
+        }),
       });
     },
     onSuccess: () => {

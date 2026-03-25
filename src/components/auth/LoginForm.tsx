@@ -15,6 +15,10 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
+import {
+  authFormBlockedMessage,
+  authExceptionMessage,
+} from "@/lib/firebaseAuthForm";
 import { Loader2 } from "lucide-react";
 
 const loginSchema = z.object({
@@ -39,6 +43,16 @@ const LoginForm = () => {
   });
 
   const onSubmit = async (values: LoginFormValues) => {
+    const blocked = authFormBlockedMessage();
+    if (blocked) {
+      toast({
+        title: "Sign in unavailable",
+        description: blocked,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     const { error } = await signIn(values.email, values.password);
     setIsLoading(false);
@@ -46,9 +60,7 @@ const LoginForm = () => {
     if (error) {
       toast({
         title: "Login failed",
-        description: error.message === "Invalid login credentials" 
-          ? "Invalid email or password. Please try again."
-          : error.message,
+        description: authExceptionMessage(error),
         variant: "destructive",
       });
       return;

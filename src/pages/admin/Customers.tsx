@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { collection, query, orderBy, getDocs, where } from "firebase/firestore";
-import { db } from "@/integrations/firebase/config";
+import { apiJson } from "@/lib/api";
 import { formatDate } from "@/lib/formatters";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -11,33 +10,23 @@ import { Users } from "lucide-react";
 const AdminCustomers = () => {
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["admin-customers"],
-    queryFn: async () => {
-      const profilesSnap = await getDocs(
-        query(collection(db, "profiles"), orderBy("created_at", "desc"))
-      );
-      const profiles = profilesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      const userIds = profiles.map((p: Record<string, unknown>) => p.user_id).filter(Boolean);
-      const orderCounts = new Map<string, number>();
-      if (userIds.length > 0) {
-        const ordersSnap = await getDocs(
-          query(collection(db, "orders"), where("user_id", "in", userIds.slice(0, 30)))
-        );
-        ordersSnap.docs.forEach((d) => {
-          const uid = d.data().user_id;
-          if (uid) orderCounts.set(uid, (orderCounts.get(uid) || 0) + 1);
-        });
-      }
-      return profiles.map((p: Record<string, unknown>) => ({
-        ...p,
-        orderCount: orderCounts.get(p.user_id as string) || 0,
-      }));
-    },
+    queryFn: async () =>
+      apiJson<
+        {
+          id: string;
+          user_id: string;
+          full_name?: string | null;
+          phone?: string | null;
+          created_at?: string | null;
+          orderCount: number;
+        }[]
+      >("/api/admin/customers"),
   });
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-display">Customers ({customers.length})</h1>
+        <h1 className="text-2xl font-display">Customers ({isLoading ? "…" : customers.length})</h1>
       </div>
 
       {customers.length === 0 ? (
@@ -57,7 +46,7 @@ const AdminCustomers = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {customers.map((c: Record<string, unknown>) => (
+              {customers.map((c) => (
                 <TableRow key={String(c.id)}>
                   <TableCell className="font-medium">{String(c.full_name || "—")}</TableCell>
                   <TableCell className="text-sm">{String(c.phone || "—")}</TableCell>

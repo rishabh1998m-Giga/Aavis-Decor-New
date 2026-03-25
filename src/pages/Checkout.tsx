@@ -4,7 +4,7 @@ import StoreLayout from "@/components/layout/StoreLayout";
 import PageMeta from "@/components/seo/PageMeta";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { functions, httpsCallable } from "@/integrations/firebase/config";
+import { apiJson, ApiRequestError } from "@/lib/api";
 import { formatPrice } from "@/lib/formatters";
 import { addressSchema, type AddressFormValues, indianStates } from "@/lib/validators";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 type Step = "address" | "payment" | "review";
 
 const Checkout = () => {
-  const { items, subtotal, clearCart } = useCart();
+  const { items, subtotal, clearCart, embeddedGstTotal } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -35,7 +35,6 @@ const Checkout = () => {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [addressData, setAddressData] = useState<AddressFormValues | null>(null);
 
-  // Discount state
   const [discountCode, setDiscountCode] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<{
     code: string;
@@ -49,7 +48,7 @@ const Checkout = () => {
   const shippingCost = subtotal >= 999 ? 0 : 99;
   const codFee = paymentMethod === "cod" ? 49 : 0;
   const discountAmount = appliedDiscount?.amount || 0;
-  const gstAmount = Math.round((subtotal * 18) / 118);
+  const gstAmount = embeddedGstTotal;
   const total = subtotal - discountAmount + shippingCost + codFee;
 
   const form = useForm<AddressFormValues>({
@@ -65,8 +64,13 @@ const Checkout = () => {
     setDiscountError("");
 
     try {
-      const validateDiscountFn = httpsCallable<{ code: string; cartTotal: number }, { valid: boolean; error?: string; code?: string; discountAmount?: number; type?: string; value?: number }>(functions, "validateDiscount");
-      const { data } = await validateDiscountFn({ code: discountCode.trim(), cartTotal: subtotal });
+      const data = await apiJson<
+        | { valid: true; code: string; discountAmount: number; type: string; value: number }
+        | { valid: false; error?: string }
+      >("/api/checkout/validate-discount", {
+        method: "POST",
+        body: JSON.stringify({ code: discountCode.trim(), cartTotal: subtotal }),
+      });
 
       if (!data.valid) {
         setDiscountError(data.error || "Invalid code");
@@ -74,12 +78,12 @@ const Checkout = () => {
       }
 
       setAppliedDiscount({
-        code: data.code!,
-        amount: data.discountAmount!,
-        type: data.type!,
-        value: data.value!,
+        code: data.code,
+        amount: data.discountAmount,
+        type: data.type,
+        value: data.value,
       });
-      toast({ title: "Discount applied!", description: `You save ${formatPrice(data.discountAmount!)}` });
+      toast({ title: "Discount applied!", description: `You save ${formatPrice(data.discountAmount)}` });
     } catch {
       setDiscountError("Failed to validate code");
     } finally {
@@ -100,6 +104,14 @@ const Checkout = () => {
 
   const handlePlaceOrder = async () => {
     if (!addressData || items.length === 0) return;
+    if (!user?.id) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to place an order.",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsPlacingOrder(true);
 
     try {
@@ -113,28 +125,41 @@ const Checkout = () => {
         pincode: addressData.pincode,
       };
 
-      const createOrderFn = httpsCallable<
-        { items: { variantId: string; productId: string; quantity: number }[]; shippingAddress: object; paymentMethod: string; discountCode?: string },
-        { orderId: string; orderNumber: string; totalAmount: number; discountAmount: number }
-      >(functions, "createOrder");
-      const { data } = await createOrderFn({
-        items: items.map((i) => ({
-          variantId: i.variantId,
-          productId: i.productId,
-          quantity: i.quantity,
-        })),
-        shippingAddress,
-        paymentMethod,
-        discountCode: appliedDiscount?.code || undefined,
+      const data = await apiJson<{
+        orderId: string;
+        orderNumber: string;
+        totalAmount: number;
+        discountAmount: number;
+      }>("/api/checkout/orders", {
+        method: "POST",
+        body: JSON.stringify({
+          items: items.map((i) => ({
+            variantId: i.variantId,
+            productId: i.productId,
+            quantity: i.quantity,
+            ...(i.customCurtainSize?.trim()
+              ? { customCurtainSize: i.customCurtainSize.trim().slice(0, 200) }
+              : {}),
+          })),
+          shippingAddress,
+          paymentMethod,
+          discountCode: appliedDiscount?.code || undefined,
+        }),
       });
 
       clearCart();
       toast({ title: "Order placed successfully!", description: `Order #${data.orderNumber}` });
       navigate(`/order-confirmation/${data.orderNumber}`);
     } catch (error: unknown) {
+      const msg =
+        error instanceof ApiRequestError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Please try again";
       toast({
         title: "Failed to place order",
-        description: error instanceof Error ? error.message : "Please try again",
+        description: msg,
         variant: "destructive",
       });
     } finally {
@@ -165,7 +190,6 @@ const Checkout = () => {
       <PageMeta title="Checkout" description="Complete your Aavis Decor order. Secure checkout with COD or UPI." canonical="/checkout" noIndex />
       <div className="pt-32 pb-20">
         <div className="container max-w-4xl">
-          {/* Steps */}
           <div className="flex items-center justify-center gap-4 mb-10">
             {steps.map((step, i) => (
               <div key={step.key} className="flex items-center gap-4">
@@ -193,9 +217,7 @@ const Checkout = () => {
           </div>
 
           <div className="grid lg:grid-cols-5 gap-10">
-            {/* Main Content */}
             <div className="lg:col-span-3">
-              {/* Address Step */}
               {currentStep === "address" && (
                 <div>
                   <h2 className="font-display text-xl mb-6">Shipping Address</h2>
@@ -279,7 +301,6 @@ const Checkout = () => {
                 </div>
               )}
 
-              {/* Payment Step */}
               {currentStep === "payment" && (
                 <div>
                   <h2 className="font-display text-xl mb-6">Payment Method</h2>
@@ -320,7 +341,6 @@ const Checkout = () => {
                 </div>
               )}
 
-              {/* Review Step */}
               {currentStep === "review" && addressData && (
                 <div>
                   <h2 className="font-display text-xl mb-6">Review Your Order</h2>
@@ -346,7 +366,7 @@ const Checkout = () => {
                     <h3 className="text-xs tracking-widest text-foreground/70 mb-4">ORDER ITEMS ({items.length})</h3>
                     <div className="space-y-3">
                       {items.map((item) => (
-                        <div key={item.variantId} className="flex gap-3">
+                        <div key={item.lineId} className="flex gap-3">
                           <img src={item.imageUrl} alt={item.name} className="w-14 h-18 object-cover" loading="lazy" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">{item.name}</p>
@@ -372,14 +392,13 @@ const Checkout = () => {
               )}
             </div>
 
-            {/* Order Summary Sidebar */}
             <div className="lg:col-span-2">
               <div className="sticky top-32 border border-border/30 rounded-md p-6 space-y-4">
                 <h3 className="font-display text-lg">Order Summary</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-foreground/70">Subtotal</span><span>{formatPrice(subtotal)}</span></div>
                   <div className="flex justify-between"><span className="text-foreground/70">Shipping</span><span>{shippingCost === 0 ? <span className="text-green-600">FREE</span> : formatPrice(shippingCost)}</span></div>
-                  <div className="flex justify-between"><span className="text-foreground/70">GST (18%)</span><span>{formatPrice(gstAmount)}</span></div>
+                  <div className="flex justify-between"><span className="text-foreground/70">GST (included)</span><span>{formatPrice(gstAmount)}</span></div>
                   {codFee > 0 && <div className="flex justify-between"><span className="text-foreground/70">COD Fee</span><span>{formatPrice(codFee)}</span></div>}
                   {discountAmount > 0 && (
                     <div className="flex justify-between text-green-600">
@@ -392,7 +411,6 @@ const Checkout = () => {
                   <div className="flex justify-between text-lg font-medium"><span>Total</span><span>{formatPrice(total)}</span></div>
                 </div>
 
-                {/* Discount Code */}
                 <div className="border-t border-border/30 pt-4">
                   <h4 className="text-xs tracking-widest text-foreground/70 mb-3">DISCOUNT CODE</h4>
                   {appliedDiscount ? (

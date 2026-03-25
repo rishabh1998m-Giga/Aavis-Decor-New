@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { collection, query, orderBy, getDocs, doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
-import { db } from "@/integrations/firebase/config";
+import { apiJson } from "@/lib/api";
 import { formatPrice, formatDate } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,14 +30,7 @@ const AdminDiscounts = () => {
 
   const { data: discounts = [] } = useQuery({
     queryKey: ["admin-discounts"],
-    queryFn: async () => {
-      const q = query(
-        collection(db, "discounts"),
-        orderBy("created_at", "desc")
-      );
-      const snap = await getDocs(q);
-      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    },
+    queryFn: async () => apiJson<Record<string, unknown>[]>("/api/admin/discounts"),
   });
 
   const saveMutation = useMutation({
@@ -49,15 +41,19 @@ const AdminDiscounts = () => {
         value: Number(form.value),
         min_cart_value: form.min_cart_value ? Number(form.min_cart_value) : null,
         max_uses: form.max_uses ? Number(form.max_uses) : null,
-        expires_at: form.expires_at || null,
+        expires_at: form.expires_at ? new Date(form.expires_at).toISOString() : null,
         is_active: form.is_active,
-        updated_at: new Date().toISOString(),
       };
       if (editing) {
-        await updateDoc(doc(db, "discounts", editing.id), payload);
+        await apiJson(`/api/admin/discounts/${encodeURIComponent(editing.id)}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
       } else {
-        const ref = doc(collection(db, "discounts"));
-        await setDoc(ref, { ...payload, created_at: payload.updated_at, usage_count: 0 });
+        await apiJson("/api/admin/discounts", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
       }
     },
     onSuccess: () => {
@@ -70,7 +66,7 @@ const AdminDiscounts = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await deleteDoc(doc(db, "discounts", id));
+      await apiJson(`/api/admin/discounts/${encodeURIComponent(id)}`, { method: "DELETE" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-discounts"] });
@@ -79,8 +75,19 @@ const AdminDiscounts = () => {
   });
 
   const toggleActive = useMutation({
-    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      await updateDoc(doc(db, "discounts", id), { is_active: active });
+    mutationFn: async ({ row, active }: { row: Record<string, unknown>; active: boolean }) => {
+      await apiJson(`/api/admin/discounts/${encodeURIComponent(String(row.id))}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          code: row.code,
+          type: row.type,
+          value: row.value,
+          min_cart_value: row.min_cart_value,
+          max_uses: row.max_uses,
+          expires_at: row.expires_at,
+          is_active: active,
+        }),
+      });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-discounts"] }),
   });
@@ -127,7 +134,7 @@ const AdminDiscounts = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {discounts.map((d: Record<string, unknown>) => (
+            {discounts.map((d) => (
               <TableRow key={String(d.id)}>
                 <TableCell className="font-mono font-medium">{d.code}</TableCell>
                 <TableCell><Badge variant="outline">{String(d.type)}</Badge></TableCell>
@@ -136,12 +143,12 @@ const AdminDiscounts = () => {
                 <TableCell>{d.usage_count}{d.max_uses ? `/${d.max_uses}` : ""}</TableCell>
                 <TableCell>{d.expires_at ? formatDate(String(d.expires_at)) : "—"}</TableCell>
                 <TableCell>
-                  <Switch checked={Boolean(d.is_active)} onCheckedChange={(v) => toggleActive.mutate({ id: String(d.id), active: v })} />
+                  <Switch checked={Boolean(d.is_active)} onCheckedChange={(v) => toggleActive.mutate({ row: d, active: v })} />
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-1">
-                    <button onClick={() => openEdit(d)} className="p-2 hover:bg-muted rounded"><Edit2 className="h-4 w-4" /></button>
-                    <button onClick={() => deleteMutation.mutate(String(d.id))} className="p-2 hover:bg-muted rounded text-destructive"><Trash2 className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => openEdit(d)} className="p-2 hover:bg-muted rounded"><Edit2 className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => deleteMutation.mutate(String(d.id))} className="p-2 hover:bg-muted rounded text-destructive"><Trash2 className="h-4 w-4" /></button>
                   </div>
                 </TableCell>
               </TableRow>

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { collection, query, where, getDocs, limit } from "firebase/firestore";
-import { db } from "@/integrations/firebase/config";
+import { apiJson } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2, MapPin, Check, X, Truck } from "lucide-react";
@@ -17,6 +16,16 @@ interface PincodeCheckerProps {
   }) => void;
 }
 
+type PincodeRow = {
+  id: string;
+  pincode: string;
+  is_serviceable?: boolean | null;
+  is_cod_available?: boolean | null;
+  city?: string | null;
+  state?: string | null;
+  estimated_days?: number | null;
+};
+
 const PincodeChecker = ({ onPincodeVerified }: PincodeCheckerProps) => {
   const [pincode, setPincode] = useState("");
   const [checkPincode, setCheckPincode] = useState<string | null>(null);
@@ -25,15 +34,7 @@ const PincodeChecker = ({ onPincodeVerified }: PincodeCheckerProps) => {
     queryKey: ["pincode", checkPincode],
     queryFn: async () => {
       if (!checkPincode) return null;
-      const q = query(
-        collection(db, "pincode_serviceability"),
-        where("pincode", "==", checkPincode),
-        where("is_serviceable", "==", true),
-        limit(1)
-      );
-      const snap = await getDocs(q);
-      if (snap.empty) return null;
-      return { id: snap.docs[0].id, ...snap.docs[0].data() };
+      return apiJson<PincodeRow | null>(`/api/pincode/${encodeURIComponent(checkPincode)}`);
     },
     enabled: !!checkPincode && checkPincode.length === 6,
     retry: false,

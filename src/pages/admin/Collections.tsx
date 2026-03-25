@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { collection, query, orderBy, getDocs, doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
-import { db } from "@/integrations/firebase/config";
+import { apiJson } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -31,11 +30,7 @@ const AdminCollections = () => {
 
   const { data: collections = [] } = useQuery({
     queryKey: ["admin-collections"],
-    queryFn: async () => {
-      const q = query(collection(db, "collections"), orderBy("sort_order"));
-      const snap = await getDocs(q);
-      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    },
+    queryFn: async () => apiJson<Record<string, unknown>[]>("/api/admin/collections"),
   });
 
   const saveMutation = useMutation({
@@ -48,13 +43,17 @@ const AdminCollections = () => {
         rules: form.type === "automatic" && form.rules ? JSON.parse(form.rules) : null,
         is_active: form.is_active,
         sort_order: editing ? (editing.sort_order as number) ?? 0 : collections.length,
-        updated_at: new Date().toISOString(),
       };
       if (editing) {
-        await updateDoc(doc(db, "collections", String(editing.id)), payload);
+        await apiJson(`/api/admin/collections/${encodeURIComponent(String(editing.id))}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
       } else {
-        const ref = doc(collection(db, "collections"));
-        await setDoc(ref, { ...payload, created_at: payload.updated_at });
+        await apiJson("/api/admin/collections", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
       }
     },
     onSuccess: () => {
@@ -67,7 +66,7 @@ const AdminCollections = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await deleteDoc(doc(db, "collections", id));
+      await apiJson(`/api/admin/collections/${encodeURIComponent(id)}`, { method: "DELETE" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-collections"] });
@@ -119,8 +118,8 @@ const AdminCollections = () => {
                 <TableCell><Badge variant={c.is_active ? "default" : "secondary"}>{c.is_active ? "Active" : "Inactive"}</Badge></TableCell>
                 <TableCell>
                   <div className="flex gap-1">
-                    <button onClick={() => openEdit(c)} className="p-2 hover:bg-muted rounded"><Edit2 className="h-4 w-4" /></button>
-                    <button onClick={() => deleteMutation.mutate(String(c.id))} className="p-2 hover:bg-muted rounded text-destructive"><Trash2 className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => openEdit(c)} className="p-2 hover:bg-muted rounded"><Edit2 className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => deleteMutation.mutate(String(c.id))} className="p-2 hover:bg-muted rounded text-destructive"><Trash2 className="h-4 w-4" /></button>
                   </div>
                 </TableCell>
               </TableRow>
@@ -130,26 +129,29 @@ const AdminCollections = () => {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing ? "Edit Collection" : "Add Collection"}</DialogTitle></DialogHeader>
-          <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-4">
-            <div><Label>Title</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value, slug: e.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') })} required /></div>
+          <form
+            onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }}
+            className="space-y-4 max-h-[80vh] overflow-y-auto"
+          >
+            <div><Label>Title</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></div>
             <div><Label>Slug</Label><Input value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} required /></div>
-            <div><Label>Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} /></div>
+            <div><Label>Description</Label><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
             <div>
               <Label>Type</Label>
               <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="manual">Manual</SelectItem>
-                  <SelectItem value="automatic">Automatic (tag rules)</SelectItem>
+                  <SelectItem value="automatic">Automatic (tags)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {form.type === "automatic" && (
               <div>
                 <Label>Rules (JSON)</Label>
-                <Textarea value={form.rules} onChange={(e) => setForm({ ...form, rules: e.target.value })} rows={3} placeholder='{"tags": ["floral"]}' />
+                <Textarea value={form.rules} onChange={(e) => setForm({ ...form, rules: e.target.value })} rows={4} placeholder='{"tags":["floral"]}' />
                 <CollectionRulePreview rulesJson={form.rules} />
               </div>
             )}

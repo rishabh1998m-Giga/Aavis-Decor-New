@@ -8,9 +8,9 @@ import PincodeChecker from "@/components/shared/PincodeChecker";
 import ProductGrid from "@/components/products/ProductGrid";
 import { useProduct, useProducts, ProductVariant } from "@/hooks/useProducts";
 import { useCart } from "@/contexts/CartContext";
-import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
-import { db } from "@/integrations/firebase/config";
+import { apiJson } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion";
@@ -31,6 +31,9 @@ const Product = () => {
 
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [quantity, setQuantity] = useState(1);
+  const [customCurtainSize, setCustomCurtainSize] = useState("");
+
+  const isCurtainProduct = product?.category?.slug === "curtains";
 
   useEffect(() => {
     if (!product?.variants.length) return;
@@ -42,6 +45,10 @@ const Product = () => {
     setQuantity(1);
   }, [product]);
 
+  useEffect(() => {
+    setCustomCurtainSize("");
+  }, [product?.id]);
+
   const displayedImages = useMemo(() => {
     if (!product?.images.length) return [];
     return resolveDisplayedImages(product.images, selectedVariant);
@@ -51,17 +58,24 @@ const Product = () => {
 
   const handleAddToCart = () => {
     if (!product || !selectedVariant) return;
+    const custom = isCurtainProduct ? customCurtainSize.trim() : "";
+    const baseInfo =
+      [selectedVariant.color, selectedVariant.size].filter(Boolean).join(" / ") || "Default";
+    const variantInfo = custom ? `${baseInfo} / Custom: ${custom}` : baseInfo;
+
     addItem({
       productId: product.id,
       productSlug: product.slug,
       variantId: selectedVariant.id,
       name: product.name,
-      variantInfo: [selectedVariant.color, selectedVariant.size].filter(Boolean).join(" / ") || "Default",
+      variantInfo,
       price: selectedVariant.price,
       compareAtPrice: selectedVariant.compareAtPrice ?? undefined,
       imageUrl: primaryImage?.url || "/placeholder.svg",
       sku: selectedVariant.sku,
       maxStock: selectedVariant.stockQuantity,
+      gstRate: product.gstRate,
+      customCurtainSize: custom || undefined,
     }, quantity);
     toast({ title: "Added to bag", description: `${product.name} has been added to your shopping bag.` });
   };
@@ -79,30 +93,24 @@ const Product = () => {
     const looksLikeId = slug.length >= 15 && slug.length <= 30 && /^[a-zA-Z0-9_-]+$/.test(slug);
     if (!looksLikeId) return;
     let cancelled = false;
-    getDoc(doc(db, "products", slug)).then((snap) => {
-      if (cancelled || !snap.exists()) return;
-      const data = snap.data();
-      const productSlug = data?.slug;
-      if (productSlug && productSlug !== slug) navigate(`/product/${productSlug}`, { replace: true });
-    });
+    apiJson<{ slug: string }>(`/api/products/by-id/${encodeURIComponent(slug)}`)
+      .then((data) => {
+        if (cancelled || !data?.slug) return;
+        if (data.slug !== slug) navigate(`/product/${data.slug}`, { replace: true });
+      })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [slug, isLoading, product, navigate]);
 
-  // When product not found by slug, check slug_aliases (e.g. after merge) and redirect to canonical URL
   useEffect(() => {
     if (isLoading || product || !slug || !error) return;
     let cancelled = false;
-    getDocs(
-      query(
-        collection(db, "products"),
-        where("slug_aliases", "array-contains", slug),
-        where("is_active", "==", true)
-      )
-    ).then((snap) => {
-      if (cancelled || snap.empty) return;
-      const productSlug = snap.docs[0].data()?.slug;
-      if (productSlug) navigate(`/product/${productSlug}`, { replace: true });
-    });
+    apiJson<{ slug: string }>(`/api/products/resolve-slug/${encodeURIComponent(slug)}`)
+      .then((data) => {
+        if (cancelled || !data?.slug) return;
+        navigate(`/product/${data.slug}`, { replace: true });
+      })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [slug, isLoading, product, error, navigate]);
 
@@ -182,11 +190,13 @@ const Product = () => {
         {/* Product Details */}
         <div className="container">
           <div className="grid lg:grid-cols-2 gap-10 lg:gap-16">
-            <ImageGallery
-              images={displayedImages}
-              productName={product.name}
-              emptyLabel={selectedVariant?.color}
-            />
+            <div className="min-w-0">
+              <ImageGallery
+                images={displayedImages}
+                productName={product.name}
+                emptyLabel={selectedVariant?.color}
+              />
+            </div>
 
             <div className="lg:py-4">
               {product.designName && (
@@ -211,6 +221,25 @@ const Product = () => {
               {product.variants.length > 0 && (
                 <div className="mb-6">
                   <VariantSelector variants={product.variants} selectedVariant={selectedVariant} onSelect={setSelectedVariant} />
+                </div>
+              )}
+
+              {isCurtainProduct && (
+                <div className="mb-6 space-y-2">
+                  <label htmlFor="custom-curtain-size" className="text-xs tracking-widest text-foreground/70">
+                    CUSTOM SIZE (OPTIONAL)
+                  </label>
+                  <Input
+                    id="custom-curtain-size"
+                    value={customCurtainSize}
+                    onChange={(e) => setCustomCurtainSize(e.target.value)}
+                    placeholder="e.g. 5.5 ft width, 6 ft drop"
+                    className="h-11"
+                    maxLength={200}
+                  />
+                  <p className="text-xs text-foreground/55 leading-relaxed">
+                    If you order a custom size, that piece cannot be returned or exchanged.
+                  </p>
                 </div>
               )}
 
@@ -295,6 +324,11 @@ const Product = () => {
                     <p>Free shipping on orders above ₹999</p>
                     <p>Standard delivery: 5-7 business days</p>
                     <p>Easy 7-day returns for unused items</p>
+                    {isCurtainProduct && (
+                      <p className="text-foreground/80">
+                        Custom-sized curtains are made to your measurements and are not returnable.
+                      </p>
+                    )}
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>

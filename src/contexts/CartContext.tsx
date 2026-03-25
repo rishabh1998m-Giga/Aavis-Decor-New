@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { buildCartLineId, lineEmbeddedGst } from "@/lib/cartLine";
 
 export interface CartItem {
+  lineId: string;
   productId: string;
   productSlug?: string;
   variantId: string;
@@ -12,16 +14,54 @@ export interface CartItem {
   imageUrl: string;
   sku: string;
   maxStock: number;
+  /** GST % embedded in inclusive line price; default 18 for legacy stored carts. */
+  gstRate: number;
+  customCurtainSize?: string;
+}
+
+export type CartItemInput = Omit<CartItem, "quantity" | "lineId"> & { lineId?: string };
+
+function normalizeStoredCartItem(raw: Record<string, unknown>): CartItem | null {
+  const variantId = typeof raw.variantId === "string" ? raw.variantId : null;
+  if (!variantId) return null;
+
+  const custom =
+    typeof raw.customCurtainSize === "string" ? raw.customCurtainSize.trim().slice(0, 200) : undefined;
+  const lineId =
+    typeof raw.lineId === "string" && raw.lineId.length > 0
+      ? raw.lineId
+      : buildCartLineId(variantId, custom);
+
+  const gstRate =
+    typeof raw.gstRate === "number" && Number.isFinite(raw.gstRate) ? raw.gstRate : 18;
+
+  return {
+    lineId,
+    productId: String(raw.productId ?? ""),
+    productSlug: typeof raw.productSlug === "string" ? raw.productSlug : undefined,
+    variantId,
+    name: String(raw.name ?? ""),
+    variantInfo: String(raw.variantInfo ?? "Default"),
+    price: Number(raw.price) || 0,
+    compareAtPrice: raw.compareAtPrice != null ? Number(raw.compareAtPrice) : undefined,
+    quantity: Math.max(1, Number(raw.quantity) || 1),
+    imageUrl: String(raw.imageUrl ?? "/placeholder.svg"),
+    sku: String(raw.sku ?? ""),
+    maxStock: Math.max(0, Number(raw.maxStock) ?? 0),
+    gstRate,
+    customCurtainSize: custom || undefined,
+  };
 }
 
 interface CartContextType {
   items: CartItem[];
-  addItem: (item: Omit<CartItem, "quantity">, quantity?: number) => void;
-  removeItem: (variantId: string) => void;
-  updateQuantity: (variantId: string, quantity: number) => void;
+  addItem: (item: CartItemInput, quantity?: number) => void;
+  removeItem: (lineId: string) => void;
+  updateQuantity: (lineId: string, quantity: number) => void;
   clearCart: () => void;
   itemCount: number;
   subtotal: number;
+  embeddedGstTotal: number;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
 }
@@ -34,27 +74,43 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
 
-  // Load cart from localStorage on mount
   useEffect(() => {
     const stored = localStorage.getItem(CART_STORAGE_KEY);
     if (stored) {
       try {
-        setItems(JSON.parse(stored));
+        const parsed = JSON.parse(stored) as unknown[];
+        if (Array.isArray(parsed)) {
+          const next = parsed
+            .map((row) =>
+              row && typeof row === "object" ? normalizeStoredCartItem(row as Record<string, unknown>) : null
+            )
+            .filter((x): x is CartItem => x != null);
+          setItems(next);
+        }
       } catch (e) {
         console.error("Failed to parse cart from storage:", e);
       }
     }
   }, []);
 
-  // Save cart to localStorage on change
   useEffect(() => {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
   }, [items]);
 
-  const addItem = (item: Omit<CartItem, "quantity">, quantity = 1) => {
+  const addItem = (item: CartItemInput, quantity = 1) => {
+    const custom = item.customCurtainSize?.trim().slice(0, 200);
+    const lineId = item.lineId ?? buildCartLineId(item.variantId, custom);
+    const gstRate = typeof item.gstRate === "number" && Number.isFinite(item.gstRate) ? item.gstRate : 18;
+    const payload: Omit<CartItem, "quantity"> = {
+      ...item,
+      lineId,
+      gstRate,
+      customCurtainSize: custom || undefined,
+    };
+
     setItems((prev) => {
-      const existingIndex = prev.findIndex((i) => i.variantId === item.variantId);
-      
+      const existingIndex = prev.findIndex((i) => i.lineId === lineId);
+
       if (existingIndex >= 0) {
         const updated = [...prev];
         const newQuantity = Math.min(
@@ -64,25 +120,25 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         updated[existingIndex] = { ...updated[existingIndex], quantity: newQuantity };
         return updated;
       }
-      
-      return [...prev, { ...item, quantity: Math.min(quantity, item.maxStock) }];
+
+      return [...prev, { ...payload, quantity: Math.min(quantity, item.maxStock) }];
     });
     setIsOpen(true);
   };
 
-  const removeItem = (variantId: string) => {
-    setItems((prev) => prev.filter((i) => i.variantId !== variantId));
+  const removeItem = (lineId: string) => {
+    setItems((prev) => prev.filter((i) => i.lineId !== lineId));
   };
 
-  const updateQuantity = (variantId: string, quantity: number) => {
+  const updateQuantity = (lineId: string, quantity: number) => {
     if (quantity < 1) {
-      removeItem(variantId);
+      removeItem(lineId);
       return;
     }
 
     setItems((prev) =>
       prev.map((item) =>
-        item.variantId === variantId
+        item.lineId === lineId
           ? { ...item, quantity: Math.min(quantity, item.maxStock) }
           : item
       )
@@ -95,6 +151,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const embeddedGstTotal = items.reduce(
+    (sum, item) => sum + lineEmbeddedGst(item.price * item.quantity, item.gstRate),
+    0
+  );
 
   return (
     <CartContext.Provider
@@ -106,6 +166,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         clearCart,
         itemCount,
         subtotal,
+        embeddedGstTotal,
         isOpen,
         setIsOpen,
       }}

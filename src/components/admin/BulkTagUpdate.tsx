@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { db } from "@/integrations/firebase/config";
+import { apiJson } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,19 +26,28 @@ const BulkTagUpdate = ({ open, onOpenChange, selectedProductIds }: Props) => {
       const tagList = tags.split(",").map((t) => t.trim()).filter(Boolean);
       if (tagList.length === 0) throw new Error("Enter at least one tag");
 
-      for (const id of selectedProductIds) {
-        const ref = doc(db, "products", id);
-        if (action === "replace") {
-          await updateDoc(ref, { tags: tagList, updated_at: new Date().toISOString() });
-        } else {
-          const snap = await getDoc(ref);
-          const existing = (snap.data()?.tags as string[]) || [];
-          const updated = action === "add"
-            ? Array.from(new Set([...existing, ...tagList]))
-            : existing.filter((t) => !tagList.includes(t));
-          await updateDoc(ref, { tags: updated, updated_at: new Date().toISOString() });
-        }
+      if (action === "replace") {
+        await apiJson("/api/admin/bulk", {
+          method: "POST",
+          body: JSON.stringify({
+            operation: "bulk-tag-replace",
+            data: { productIds: selectedProductIds, tags: tagList },
+          }),
+        });
+        return;
       }
+
+      await apiJson("/api/admin/bulk", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "bulk-tag-update",
+          data: {
+            productIds: selectedProductIds,
+            tagsToAdd: action === "add" ? tagList : [],
+            tagsToRemove: action === "remove" ? tagList : [],
+          },
+        }),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-products"] });

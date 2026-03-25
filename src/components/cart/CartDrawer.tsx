@@ -41,7 +41,7 @@ const CartDrawer = () => {
             <div className="flex-1 overflow-y-auto py-4 space-y-4">
               {items.map((item) => (
                 <div
-                  key={item.variantId}
+                  key={item.lineId}
                   className="flex gap-4 p-4 border border-border/30 rounded-md"
                 >
                   {/* Image */}
@@ -73,7 +73,7 @@ const CartDrawer = () => {
                         </p>
                       </div>
                       <button
-                        onClick={() => removeItem(item.variantId)}
+                        onClick={() => removeItem(item.lineId)}
                         className="text-foreground/40 hover:text-foreground p-1"
                       >
                         <X className="h-4 w-4" />
@@ -85,7 +85,7 @@ const CartDrawer = () => {
                       <div className="flex items-center border border-border/50">
                         <button
                           onClick={() =>
-                            updateQuantity(item.variantId, item.quantity - 1)
+                            updateQuantity(item.lineId, item.quantity - 1)
                           }
                           className="p-1.5 hover:bg-muted transition-colors"
                         >
@@ -96,7 +96,7 @@ const CartDrawer = () => {
                         </span>
                         <button
                           onClick={() =>
-                            updateQuantity(item.variantId, item.quantity + 1)
+                            updateQuantity(item.lineId, item.quantity + 1)
                           }
                           className="p-1.5 hover:bg-muted transition-colors"
                           disabled={item.quantity >= item.maxStock}

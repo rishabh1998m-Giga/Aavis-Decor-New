@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { collection, getDocs, query, where, orderBy, doc, getDoc } from "firebase/firestore";
-import { db } from "@/integrations/firebase/config";
+import { apiJson } from "@/lib/api";
 import { formatPrice, formatDate } from "@/lib/formatters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,74 +11,7 @@ import { DollarSign, Package, ShoppingCart, Users, AlertTriangle, TrendingUp } f
 const AdminDashboard = () => {
   const { data: stats } = useQuery({
     queryKey: ["admin-stats"],
-    queryFn: async () => {
-      const [ordersSnap, productsSnap, variantsSnap, profilesSnap] = await Promise.all([
-        getDocs(query(collection(db, "orders"), orderBy("created_at", "desc"))),
-        getDocs(collection(db, "products")),
-        getDocs(query(collection(db, "product_variants"), where("stock_quantity", "<=", 5))),
-        getDocs(collection(db, "profiles")),
-      ]);
-
-      const orders = ordersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      const totalRevenue = orders
-        .filter((o: Record<string, unknown>) => o.payment_status === "paid" || o.payment_method === "cod")
-        .reduce((sum: number, o: Record<string, unknown>) => sum + Number(o.total_amount), 0);
-
-      const pendingOrders = orders.filter((o: Record<string, unknown>) => o.status === "pending").length;
-      const codOrders = orders.filter((o: Record<string, unknown>) => o.payment_method === "cod").length;
-
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const recentRevenue = orders
-        .filter((o: Record<string, unknown>) => new Date((o.created_at as string) || "") > sevenDaysAgo)
-        .reduce((sum: number, o: Record<string, unknown>) => sum + Number(o.total_amount), 0);
-
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const dailyMap: Record<string, { revenue: number; orders: number }> = {};
-      for (let d = new Date(thirtyDaysAgo); d <= new Date(); d.setDate(d.getDate() + 1)) {
-        const key = d.toISOString().slice(0, 10);
-        dailyMap[key] = { revenue: 0, orders: 0 };
-      }
-      orders.forEach((o: Record<string, unknown>) => {
-        const key = ((o.created_at as string) || "").slice(0, 10);
-        if (dailyMap[key]) {
-          dailyMap[key].revenue += Number(o.total_amount);
-          dailyMap[key].orders += 1;
-        }
-      });
-      const dailyData = Object.entries(dailyMap).map(([date, v]) => ({
-        date: new Date(date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
-        revenue: Math.round(v.revenue),
-        orders: v.orders,
-      }));
-
-      const lowStockItems = variantsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      const productIds = [...new Set(lowStockItems.map((v: Record<string, unknown>) => v.product_id).filter(Boolean))] as string[];
-      const productMap = new Map<string, string>();
-      await Promise.all(
-        productIds.slice(0, 30).map(async (id) => {
-          const snap = await getDoc(doc(db, "products", id));
-          if (snap.exists()) productMap.set(id, snap.data().name);
-        })
-      );
-
-      return {
-        totalOrders: orders.length,
-        totalRevenue,
-        totalProducts: productsSnap.size,
-        totalCustomers: profilesSnap.size,
-        lowStockItems: lowStockItems.map((item: Record<string, unknown>) => ({
-          ...item,
-          productName: productMap.get(item.product_id as string) || "—",
-        })),
-        pendingOrders,
-        codOrders,
-        recentRevenue,
-        recentOrders: orders.slice(0, 10),
-        dailyData,
-      };
-    },
+    queryFn: async () => apiJson<Record<string, unknown>>("/api/admin/stats"),
   });
 
   const chartConfig = useMemo(() => ({

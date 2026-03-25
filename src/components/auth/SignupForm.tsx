@@ -14,6 +14,10 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
+import {
+  authFormBlockedMessage,
+  authExceptionMessage,
+} from "@/lib/firebaseAuthForm";
 import { Loader2 } from "lucide-react";
 
 const signupSchema = z.object({
@@ -44,18 +48,24 @@ const SignupForm = () => {
   });
 
   const onSubmit = async (values: SignupFormValues) => {
+    const blocked = authFormBlockedMessage();
+    if (blocked) {
+      toast({
+        title: "Signup unavailable",
+        description: blocked,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     const { error } = await signUp(values.email, values.password, values.fullName);
     setIsLoading(false);
 
     if (error) {
-      let errorMessage = error.message;
-      if (error.message.includes("already registered")) {
-        errorMessage = "This email is already registered. Please sign in instead.";
-      }
       toast({
         title: "Signup failed",
-        description: errorMessage,
+        description: authExceptionMessage(error),
         variant: "destructive",
       });
       return;

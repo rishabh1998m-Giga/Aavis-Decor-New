@@ -1,17 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import {
-  collection,
-  query,
-  where,
-  orderBy,
-  limit,
-  getDocs,
-  doc,
-  getDoc,
-  getCountFromServer,
-  QueryConstraint,
-} from "firebase/firestore";
-import { db } from "@/integrations/firebase/config";
+import { apiJson, ApiRequestError } from "@/lib/api";
+import { resolveProductGstRate } from "@/lib/gstRate";
 
 export interface Product {
   id: string;
@@ -71,49 +60,128 @@ export interface ProductWithDetails extends Product {
   category: Category | null;
 }
 
-const mapCategory = (id: string, d: Record<string, unknown>): Category => ({
-  id,
-  name: (d.name as string) ?? "",
-  slug: (d.slug as string) ?? "",
-  description: (d.description as string) ?? null,
-  imageUrl: (d.image_url as string) ?? null,
-  isActive: (d.is_active as boolean) ?? true,
-  sortOrder: (d.sort_order as number) ?? 0,
-});
+type ApiCategory = {
+  id: string;
+  name?: string;
+  slug?: string;
+  description?: string | null;
+  image_url?: string | null;
+  is_active?: boolean;
+  sort_order?: number;
+};
 
-const mapProduct = (
-  id: string,
-  p: Record<string, unknown>,
-  categories: Map<string, Category>,
-  variants: ProductVariant[],
-  images: ProductImage[]
-): ProductWithDetails => {
-  const catId = p.category_id as string | null;
+type ApiVariant = {
+  id: string;
+  product_id: string;
+  sku: string;
+  color?: string | null;
+  size?: string | null;
+  price: number;
+  compare_at_price?: number | null;
+  stock_quantity?: number;
+  is_active?: boolean;
+};
+
+type ApiImage = {
+  id: string;
+  product_id: string;
+  variant_id?: string | null;
+  url: string;
+  alt_text?: string | null;
+  is_primary?: boolean;
+  sort_order?: number;
+};
+
+export type ApiProduct = {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  short_description?: string | null;
+  base_price: number;
+  compare_at_price?: number | null;
+  gst_rate?: number | null;
+  category_id?: string | null;
+  is_active?: boolean;
+  is_featured?: boolean;
+  design_name?: string | null;
+  tags?: string[] | null;
+  fabric?: string | null;
+  dimensions?: string | null;
+  care_instructions?: string | null;
+  created_at?: string;
+  category?: ApiCategory | null;
+  variants?: ApiVariant[];
+  images?: ApiImage[];
+};
+
+function mapCategoryFromApi(c: ApiCategory | null | undefined): Category | null {
+  if (!c?.id) return null;
   return {
-    id,
-    name: (p.name as string) ?? "",
-    slug: (p.slug as string) ?? "",
-    description: (p.description as string) ?? null,
-    shortDescription: (p.short_description as string) ?? null,
+    id: c.id,
+    name: c.name ?? "",
+    slug: c.slug ?? "",
+    description: c.description ?? null,
+    imageUrl: c.image_url ?? null,
+    isActive: c.is_active ?? true,
+    sortOrder: c.sort_order ?? 0,
+  };
+}
+
+export function mapApiProductToDetails(
+  p: ApiProduct,
+  categoriesFallback?: Map<string, Category>
+): ProductWithDetails {
+  const cat =
+    mapCategoryFromApi(p.category) ??
+    (p.category_id && categoriesFallback?.get(p.category_id)) ??
+    null;
+  const variants: ProductVariant[] = (p.variants ?? []).map((v) => ({
+    id: v.id,
+    productId: v.product_id,
+    sku: v.sku,
+    color: v.color ?? null,
+    size: v.size ?? null,
+    price: Number(v.price),
+    compareAtPrice: v.compare_at_price != null ? Number(v.compare_at_price) : null,
+    stockQuantity: v.stock_quantity ?? 0,
+    isActive: v.is_active ?? true,
+  }));
+  const images: ProductImage[] = (p.images ?? [])
+    .map((img) => ({
+      id: img.id,
+      productId: img.product_id,
+      variantId: img.variant_id ?? null,
+      url: img.url,
+      altText: img.alt_text ?? null,
+      isPrimary: img.is_primary ?? false,
+      sortOrder: img.sort_order ?? 0,
+    }))
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  return {
+    id: p.id,
+    name: p.name,
+    slug: p.slug,
+    description: p.description ?? null,
+    shortDescription: p.short_description ?? null,
     basePrice: Number(p.base_price ?? 0),
     compareAtPrice: p.compare_at_price != null ? Number(p.compare_at_price) : null,
-    gstRate: Number(p.gst_rate ?? 18),
-    categoryId: catId,
-    isActive: (p.is_active as boolean) ?? true,
-    isFeatured: (p.is_featured as boolean) ?? false,
-    designName: (p.design_name as string) ?? null,
-    tags: (p.tags as string[]) ?? null,
-    fabric: (p.fabric as string) ?? null,
-    dimensions: (p.dimensions as string) ?? null,
-    careInstructions: (p.care_instructions as string) ?? null,
-    createdAt: (p.created_at as string) ?? "",
-    category: catId ? categories.get(catId) ?? null : null,
-    variants: variants.filter((v) => v.productId === id).sort((a, b) => a.sku.localeCompare(b.sku)),
-    images: images
-      .filter((img) => img.productId === id)
-      .sort((a, b) => a.sortOrder - b.sortOrder),
+    gstRate: resolveProductGstRate(p.gst_rate, cat?.slug),
+    categoryId: p.category_id ?? null,
+    isActive: p.is_active ?? true,
+    isFeatured: p.is_featured ?? false,
+    designName: p.design_name ?? null,
+    tags: p.tags ?? null,
+    fabric: p.fabric ?? null,
+    dimensions: p.dimensions ?? null,
+    careInstructions: p.care_instructions ?? null,
+    createdAt: p.created_at ?? "",
+    category: cat,
+    variants: variants.filter((v) => v.productId === p.id).sort((a, b) => a.sku.localeCompare(b.sku)),
+    images,
   };
-};
+}
 
 export interface PaginatedProductsParams {
   page?: number;
@@ -145,22 +213,12 @@ export const useCategories = () => {
   return useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
-      const q = query(
-        collection(db, "categories"),
-        where("is_active", "==", true),
-        orderBy("sort_order")
-      );
-      const snap = await getDocs(q);
-      const categories: Category[] = [];
-      snap.docs.forEach((d) => {
-        categories.push(mapCategory(d.id, d.data()));
-      });
-      return categories;
+      const rows = await apiJson<ApiCategory[]>("/api/categories");
+      return rows.map((c) => mapCategoryFromApi(c)!);
     },
   });
 };
 
-/** Fetches representative image URL per category (from first product when category has no image_url). */
 export const useCategoryImages = (categories: Category[]) => {
   const needImage = categories.filter((c) => !c.imageUrl);
   return useQuery({
@@ -168,34 +226,11 @@ export const useCategoryImages = (categories: Category[]) => {
     queryFn: async (): Promise<Map<string, string>> => {
       const map = new Map<string, string>();
       if (needImage.length === 0) return map;
-
-      const results = await Promise.all(
-        needImage.map(async (cat) => {
-          const productsSnap = await getDocs(
-            query(
-              collection(db, "products"),
-              where("is_active", "==", true),
-              where("category_id", "==", cat.id),
-              orderBy("created_at", "desc"),
-              limit(1)
-            )
-          );
-          if (productsSnap.empty) return { catId: cat.id, url: null as string | null };
-          const productId = productsSnap.docs[0].id;
-          const imagesSnap = await getDocs(
-            query(
-              collection(db, "product_images"),
-              where("product_id", "==", productId)
-            )
-          );
-          const sorted = imagesSnap.docs
-            .map((d) => ({ ...d.data(), sortOrder: d.data().sort_order ?? 0 }))
-            .sort((a, b) => (a.sortOrder as number) - (b.sortOrder as number));
-          const url = sorted[0]?.url;
-          return { catId: cat.id, url };
-        })
-      );
-      results.forEach((r) => { if (r.url) map.set(r.catId, r.url); });
+      const data = await apiJson<Record<string, string>>("/api/categories/representative-images", {
+        method: "POST",
+        body: JSON.stringify({ ids: needImage.map((c) => c.id) }),
+      });
+      Object.entries(data).forEach(([k, v]) => { if (v) map.set(k, v); });
       return map;
     },
     enabled: needImage.length > 0,
@@ -231,137 +266,38 @@ export const usePaginatedProducts = (params: PaginatedProductsParams = {}) => {
       inStockOnly,
     ],
     queryFn: async (): Promise<PaginatedResult> => {
-      let categoryId: string | null = null;
-      const normalizedCategorySlug = normalizeSlug(categorySlug);
-      if (normalizedCategorySlug) {
-        const activeCategoriesSnap = await getDocs(
-          query(collection(db, "categories"), where("is_active", "==", true))
-        );
-        const match = activeCategoriesSnap.docs.find(
-          (d) => normalizeSlug((d.data().slug as string) ?? "") === normalizedCategorySlug
-        );
-        if (match) categoryId = match.id;
-        if (!categoryId) {
-          return {
-            products: [],
-            totalCount: 0,
-            totalPages: 0,
-            currentPage: page,
-          };
-        }
-      }
+      const sp = new URLSearchParams();
+      sp.set("page", String(page));
+      sp.set("pageSize", String(pageSize));
+      if (categorySlug) sp.set("categorySlug", categorySlug);
+      sp.set("sortBy", sortBy);
+      if (fabric) sp.set("fabric", fabric);
+      if (priceMin != null) sp.set("priceMin", String(priceMin));
+      if (priceMax != null) sp.set("priceMax", String(priceMax));
+      if (colors?.length) sp.set("colors", colors.join(","));
+      if (sizes?.length) sp.set("sizes", sizes.join(","));
+      if (inStockOnly) sp.set("inStockOnly", "true");
 
-      const constraints: QueryConstraint[] = [where("is_active", "==", true)];
-      if (categoryId) constraints.push(where("category_id", "==", categoryId));
-      if (fabric) constraints.push(where("fabric", "==", fabric));
-      if (priceMin != null && priceMin > 0) constraints.push(where("max_variant_price", ">=", priceMin));
-      if (priceMax != null && priceMax > 0) constraints.push(where("base_price", "<=", priceMax));
+      const res = await apiJson<{
+        products: ApiProduct[];
+        totalCount: number;
+        totalPages: number;
+        currentPage: number;
+      }>(`/api/products/paginated?${sp.toString()}`);
 
-      const hasPriceFilter = priceMin != null || priceMax != null;
-      const hasPriceMin = priceMin != null && priceMin > 0;
-      const orderField =
-        hasPriceMin
-          ? "max_variant_price"
-          : hasPriceFilter || sortBy === "price-low" || sortBy === "price-high"
-            ? "base_price"
-            : sortBy === "name"
-              ? "name"
-              : "created_at";
-      const orderDir =
-        sortBy === "price-high"
-          ? "desc"
-          : sortBy === "price-low" || sortBy === "name" || hasPriceMin
-            ? "asc"
-            : "desc";
-      constraints.push(orderBy(orderField, orderDir));
-
-      const productsQuery = query(collection(db, "products"), ...constraints);
-      const countSnap = await getCountFromServer(productsQuery);
-      const totalCount = countSnap.data().count;
-
-      const from = (page - 1) * pageSize;
-      const pageQuery = query(productsQuery, limit(pageSize + from));
-      const productsSnap = await getDocs(pageQuery);
-      const pageDocs = productsSnap.docs.slice(from, from + pageSize);
-      const productIds = pageDocs.map((d) => d.id);
-      const idBatch = productIds.length > 30 ? productIds.slice(0, 30) : productIds;
-
-      const [variantsSnap, imagesSnap, categoriesSnap] = await Promise.all([
-        idBatch.length
-          ? getDocs(
-              query(
-                collection(db, "product_variants"),
-                where("product_id", "in", idBatch),
-                where("is_active", "==", true)
-              )
-            )
-          : Promise.resolve({ docs: [] as ReturnType<typeof getDocs>["docs"], empty: true }),
-        idBatch.length
-          ? getDocs(
-              query(collection(db, "product_images"), where("product_id", "in", idBatch))
-            )
-          : Promise.resolve({ docs: [] as ReturnType<typeof getDocs>["docs"], empty: true }),
-        getDocs(query(collection(db, "categories"), where("is_active", "==", true))),
-      ]);
-
+      const categoriesSnap = await apiJson<ApiCategory[]>("/api/categories");
       const categoriesMap = new Map<string, Category>();
-      categoriesSnap.docs.forEach((d) => {
-        categoriesMap.set(d.id, mapCategory(d.id, d.data()));
+      categoriesSnap.forEach((c) => {
+        const mc = mapCategoryFromApi(c);
+        if (mc) categoriesMap.set(c.id, mc);
       });
 
-      const variants: ProductVariant[] = [];
-      variantsSnap.docs.forEach((d) => {
-        const v = d.data();
-        variants.push({
-          id: d.id,
-          productId: v.product_id,
-          sku: v.sku,
-          color: v.color ?? null,
-          size: v.size ?? null,
-          price: Number(v.price),
-          compareAtPrice: v.compare_at_price != null ? Number(v.compare_at_price) : null,
-          stockQuantity: v.stock_quantity ?? 0,
-          isActive: v.is_active ?? true,
-        });
-      });
-
-      const images: ProductImage[] = [];
-      imagesSnap.docs.forEach((d) => {
-        const img = d.data();
-        images.push({
-          id: d.id,
-          productId: img.product_id,
-          variantId: img.variant_id ?? null,
-          url: img.url,
-          altText: img.alt_text ?? null,
-          isPrimary: img.is_primary ?? false,
-          sortOrder: img.sort_order ?? 0,
-        });
-      });
-
-      let products = pageDocs.map((d) =>
-        mapProduct(d.id, d.data(), categoriesMap, variants, images)
-      );
-
-      if (colors?.length) {
-        products = products.filter((p) =>
-          p.variants.some((v) => v.color && colors.includes(v.color))
-        );
-      }
-      if (sizes?.length) {
-        products = products.filter((p) =>
-          p.variants.some((v) => v.size && sizes.includes(v.size))
-        );
-      }
-      if (inStockOnly) {
-        products = products.filter((p) => p.variants.some((v) => v.stockQuantity > 0));
-      }
-
+      const products = res.products.map((p) => mapApiProductToDetails(p, categoriesMap));
       return {
         products,
-        totalCount,
-        totalPages: Math.ceil(totalCount / pageSize),
-        currentPage: page,
+        totalCount: res.totalCount,
+        totalPages: res.totalPages,
+        currentPage: res.currentPage,
       };
     },
   });
@@ -371,85 +307,17 @@ export const useProducts = (categorySlug?: string) => {
   return useQuery({
     queryKey: ["products", categorySlug],
     queryFn: async () => {
-      let categoryId: string | null = null;
-      const normalizedCategorySlug = normalizeSlug(categorySlug);
-      if (normalizedCategorySlug) {
-        const activeCategoriesSnap = await getDocs(
-          query(collection(db, "categories"), where("is_active", "==", true))
-        );
-        const match = activeCategoriesSnap.docs.find(
-          (d) => normalizeSlug((d.data().slug as string) ?? "") === normalizedCategorySlug
-        );
-        if (match) categoryId = match.id;
-        if (!categoryId) return [];
-      }
-
-      const constraints: QueryConstraint[] = [
-        where("is_active", "==", true),
-        orderBy("created_at", "desc"),
-        limit(50),
-      ];
-      if (categoryId) constraints.push(where("category_id", "==", categoryId));
-      const productsSnap = await getDocs(
-        query(collection(db, "products"), ...constraints)
-      );
-      const productIds = productsSnap.docs.map((d) => d.id);
-      const idBatch = productIds.length > 30 ? productIds.slice(0, 30) : productIds;
-      if (idBatch.length === 0) return [];
-
-      const [variantsSnap, imagesSnap, categoriesSnap] = await Promise.all([
-        getDocs(
-          query(
-            collection(db, "product_variants"),
-            where("product_id", "in", idBatch),
-            where("is_active", "==", true)
-          )
-        ),
-        getDocs(
-          query(
-            collection(db, "product_images"),
-            where("product_id", "in", idBatch)
-          )
-        ),
-        getDocs(query(collection(db, "categories"), where("is_active", "==", true))),
-      ]);
-
+      const sp = new URLSearchParams();
+      if (categorySlug) sp.set("categorySlug", normalizeSlug(categorySlug));
+      const q = sp.toString();
+      const rows = await apiJson<ApiProduct[]>(`/api/products/list${q ? `?${q}` : ""}`);
+      const categoriesSnap = await apiJson<ApiCategory[]>("/api/categories");
       const categoriesMap = new Map<string, Category>();
-      categoriesSnap.docs.forEach((d) => {
-        categoriesMap.set(d.id, mapCategory(d.id, d.data()));
+      categoriesSnap.forEach((c) => {
+        const mc = mapCategoryFromApi(c);
+        if (mc) categoriesMap.set(c.id, mc);
       });
-      const variants: ProductVariant[] = [];
-      variantsSnap.docs.forEach((d) => {
-        const v = d.data();
-        variants.push({
-          id: d.id,
-          productId: v.product_id,
-          sku: v.sku,
-          color: v.color ?? null,
-          size: v.size ?? null,
-          price: Number(v.price),
-          compareAtPrice: v.compare_at_price != null ? Number(v.compare_at_price) : null,
-          stockQuantity: v.stock_quantity ?? 0,
-          isActive: v.is_active ?? true,
-        });
-      });
-      const images: ProductImage[] = [];
-      imagesSnap.docs.forEach((d) => {
-        const img = d.data();
-        images.push({
-          id: d.id,
-          productId: img.product_id,
-          variantId: img.variant_id ?? null,
-          url: img.url,
-          altText: img.alt_text ?? null,
-          isPrimary: img.is_primary ?? false,
-          sortOrder: img.sort_order ?? 0,
-        });
-      });
-
-      return productsSnap.docs.map((d) =>
-        mapProduct(d.id, d.data(), categoriesMap, variants, images)
-      );
+      return rows.map((p) => mapApiProductToDetails(p, categoriesMap));
     },
   });
 };
@@ -458,69 +326,16 @@ export const useProduct = (slug: string) => {
   return useQuery({
     queryKey: ["product", slug],
     queryFn: async () => {
-      const productsSnap = await getDocs(
-        query(
-          collection(db, "products"),
-          where("slug", "==", slug),
-          where("is_active", "==", true),
-          limit(1)
-        )
-      );
-      if (productsSnap.empty) throw new Error("Product not found");
-      const productDoc = productsSnap.docs[0];
-      const productId = productDoc.id;
-      const p = productDoc.data();
-
-      const [variantsSnap, imagesSnap, catDoc] = await Promise.all([
-        getDocs(
-          query(
-            collection(db, "product_variants"),
-            where("product_id", "==", productId),
-            where("is_active", "==", true)
-          )
-        ),
-        getDocs(
-          query(collection(db, "product_images"), where("product_id", "==", productId))
-        ),
-        p.category_id
-          ? getDoc(doc(db, "categories", p.category_id as string))
-          : Promise.resolve(null),
-      ]);
-
-      const categoriesMap = new Map<string, Category>();
-      if (catDoc?.exists()) {
-        const c = catDoc;
-        categoriesMap.set(c.id, mapCategory(c.id, c.data()));
+      try {
+        const enc = encodeURIComponent(slug);
+        const row = await apiJson<ApiProduct>(`/api/products/by-slug/${enc}`);
+        return mapApiProductToDetails(row);
+      } catch (e) {
+        if (e instanceof ApiRequestError && e.status === 404) {
+          throw new Error("Product not found");
+        }
+        throw e;
       }
-
-      const variants: ProductVariant[] = variantsSnap.docs.map((d) => {
-        const v = d.data();
-        return {
-          id: d.id,
-          productId: v.product_id,
-          sku: v.sku,
-          color: v.color ?? null,
-          size: v.size ?? null,
-          price: Number(v.price),
-          compareAtPrice: v.compare_at_price != null ? Number(v.compare_at_price) : null,
-          stockQuantity: v.stock_quantity ?? 0,
-          isActive: v.is_active ?? true,
-        };
-      });
-      const images: ProductImage[] = imagesSnap.docs.map((d) => {
-        const img = d.data();
-        return {
-          id: d.id,
-          productId: img.product_id,
-          variantId: img.variant_id ?? null,
-          url: img.url,
-          altText: img.alt_text ?? null,
-          isPrimary: img.is_primary ?? false,
-          sortOrder: img.sort_order ?? 0,
-        };
-      });
-
-      return mapProduct(productId, p, categoriesMap, variants, images);
     },
     enabled: !!slug,
   });
@@ -530,69 +345,14 @@ export const useFeaturedProducts = () => {
   return useQuery({
     queryKey: ["featured-products"],
     queryFn: async () => {
-      const productsSnap = await getDocs(
-        query(
-          collection(db, "products"),
-          where("is_active", "==", true),
-          where("is_featured", "==", true),
-          orderBy("created_at", "desc"),
-          limit(8)
-        )
-      );
-      const productIds = productsSnap.docs.map((d) => d.id);
-      const idBatch = productIds.length > 30 ? productIds.slice(0, 30) : productIds;
-      if (idBatch.length === 0) return [];
-
-      const [variantsSnap, imagesSnap, categoriesSnap] = await Promise.all([
-        getDocs(
-          query(
-            collection(db, "product_variants"),
-            where("product_id", "in", idBatch),
-            where("is_active", "==", true)
-          )
-        ),
-        getDocs(
-          query(
-            collection(db, "product_images"),
-            where("product_id", "in", idBatch))
-        ),
-        getDocs(query(collection(db, "categories"), where("is_active", "==", true))),
-      ]);
-
+      const rows = await apiJson<ApiProduct[]>("/api/products/featured");
+      const categoriesSnap = await apiJson<ApiCategory[]>("/api/categories");
       const categoriesMap = new Map<string, Category>();
-      categoriesSnap.docs.forEach((d) => {
-        categoriesMap.set(d.id, mapCategory(d.id, d.data()));
+      categoriesSnap.forEach((c) => {
+        const mc = mapCategoryFromApi(c);
+        if (mc) categoriesMap.set(c.id, mc);
       });
-      const variants: ProductVariant[] = variantsSnap.docs.map((d) => {
-        const v = d.data();
-        return {
-          id: d.id,
-          productId: v.product_id,
-          sku: v.sku,
-          color: v.color ?? null,
-          size: v.size ?? null,
-          price: Number(v.price),
-          compareAtPrice: v.compare_at_price != null ? Number(v.compare_at_price) : null,
-          stockQuantity: v.stock_quantity ?? 0,
-          isActive: v.is_active ?? true,
-        };
-      });
-      const images: ProductImage[] = imagesSnap.docs.map((d) => {
-        const img = d.data();
-        return {
-          id: d.id,
-          productId: img.product_id,
-          variantId: img.variant_id ?? null,
-          url: img.url,
-          altText: img.alt_text ?? null,
-          isPrimary: img.is_primary ?? false,
-          sortOrder: img.sort_order ?? 0,
-        };
-      });
-
-      return productsSnap.docs.map((d) =>
-        mapProduct(d.id, d.data(), categoriesMap, variants, images)
-      );
+      return rows.map((p) => mapApiProductToDetails(p, categoriesMap));
     },
   });
 };

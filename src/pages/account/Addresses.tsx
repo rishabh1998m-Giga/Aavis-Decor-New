@@ -1,9 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { collection, query, where, orderBy, getDocs, doc, deleteDoc } from "firebase/firestore";
-import { db } from "@/integrations/firebase/config";
+import { apiJson } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
-import { MapPin, Trash2, Plus } from "lucide-react";
+import { MapPin, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const AccountAddresses = () => {
@@ -12,22 +10,14 @@ const AccountAddresses = () => {
   const queryClient = useQueryClient();
 
   const { data: addresses = [], isLoading } = useQuery({
-    queryKey: ["my-addresses", user?.uid],
-    queryFn: async () => {
-      const q = query(
-        collection(db, "addresses"),
-        where("user_id", "==", user!.uid),
-        orderBy("is_default", "desc")
-      );
-      const snap = await getDocs(q);
-      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    },
-    enabled: !!user?.uid,
+    queryKey: ["my-addresses", user?.id ],
+    queryFn: async () => apiJson<Record<string, unknown>[]>("/api/me/addresses"),
+    enabled: !!user?.id,
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await deleteDoc(doc(db, "addresses", id));
+      await apiJson(`/api/me/addresses/${encodeURIComponent(id)}`, { method: "DELETE" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-addresses"] });

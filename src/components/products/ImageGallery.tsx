@@ -18,7 +18,6 @@ interface ImageGalleryProps {
 
 const ImageGallery = ({ images, productName, emptyLabel }: ImageGalleryProps) => {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [direction, setDirection] = useState(0);
 
   const sortedImages = [...images].sort((a, b) => a.sortOrder - b.sortOrder);
 
@@ -40,39 +39,25 @@ const ImageGallery = ({ images, productName, emptyLabel }: ImageGalleryProps) =>
   }
 
   const goTo = (index: number) => {
-    setDirection(index > currentIndex ? 1 : -1);
     setCurrentIndex(index);
   };
 
   const goNext = () => {
     if (currentIndex < sortedImages.length - 1) {
-      setDirection(1);
       setCurrentIndex(currentIndex + 1);
     }
   };
 
   const goPrev = () => {
     if (currentIndex > 0) {
-      setDirection(-1);
       setCurrentIndex(currentIndex - 1);
     }
   };
 
-  const variants = {
-    enter: (direction: number) => ({
-      x: direction > 0 ? 300 : -300,
-      opacity: 0,
-    }),
-    center: {
-      zIndex: 1,
-      x: 0,
-      opacity: 1,
-    },
-    exit: (direction: number) => ({
-      zIndex: 0,
-      x: direction < 0 ? 300 : -300,
-      opacity: 0,
-    }),
+  const fadeVariants = {
+    enter: { opacity: 0 },
+    center: { opacity: 1 },
+    exit: { opacity: 0 },
   };
 
   return (
@@ -107,21 +92,17 @@ const ImageGallery = ({ images, productName, emptyLabel }: ImageGalleryProps) =>
         <Dialog>
           <DialogTrigger asChild>
             <div className="relative aspect-[3/4] bg-muted overflow-hidden cursor-zoom-in group">
-              <AnimatePresence initial={false} custom={direction}>
+              <AnimatePresence initial={false} mode="wait">
                 <motion.img
                   key={currentIndex}
                   src={currentImage.url}
                   alt={currentImage.altText || productName}
-                  custom={direction}
-                  variants={variants}
+                  variants={fadeVariants}
                   initial="enter"
                   animate="center"
                   exit="exit"
-                  transition={{
-                    x: { type: "spring", stiffness: 300, damping: 30 },
-                    opacity: { duration: 0.2 },
-                  }}
-                  className="absolute inset-0 w-full h-full object-contain"
+                  transition={{ opacity: { duration: 0.22 } }}
+                  className="absolute inset-0 w-full h-full object-contain object-center"
                 />
               </AnimatePresence>
               

@@ -40,6 +40,7 @@ const ProductCard = ({ product, index = 0 }: ProductCardProps) => {
       imageUrl: primaryImage?.url || "/placeholder.svg",
       sku: firstVariant.sku,
       maxStock: firstVariant.stockQuantity,
+      gstRate: product.gstRate,
     });
   };
 

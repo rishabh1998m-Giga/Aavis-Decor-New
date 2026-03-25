@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { collection, query, where, getDocs, limit } from "firebase/firestore";
-import { db } from "@/integrations/firebase/config";
+import { apiJson } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Package } from "lucide-react";
 
@@ -9,25 +8,27 @@ interface Props {
 }
 
 const CollectionRulePreview = ({ rulesJson }: Props) => {
+  const tagsEncoded = (() => {
+    try {
+      const rules = JSON.parse(rulesJson);
+      const tags = rules.tags || [];
+      return Array.isArray(tags) && tags.length > 0
+        ? encodeURIComponent(tags.slice(0, 10).map((t: string) => String(t)).join(","))
+        : "";
+    } catch {
+      return "";
+    }
+  })();
+
   const { data: matchingProducts = [], isLoading } = useQuery({
     queryKey: ["collection-rule-preview", rulesJson],
     queryFn: async () => {
-      const rules = JSON.parse(rulesJson);
-      const tags = rules.tags || [];
-      if (tags.length === 0) return [];
-      const q = query(
-        collection(db, "products"),
-        where("is_active", "==", true),
-        where("tags", "array-contains-any", tags.slice(0, 10)),
-        limit(10)
+      if (!tagsEncoded) return [];
+      return apiJson<Array<{ id: string; name: string }>>(
+        `/api/admin/tag-preview?tags=${tagsEncoded}`
       );
-      const snap = await getDocs(q);
-      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     },
-    enabled: (() => {
-      try { const r = JSON.parse(rulesJson); return Array.isArray(r.tags) && r.tags.length > 0; }
-      catch { return false; }
-    })(),
+    enabled: !!tagsEncoded,
   });
 
   if (!rulesJson) return null;
@@ -44,7 +45,7 @@ const CollectionRulePreview = ({ rulesJson }: Props) => {
       </div>
       {matchingProducts.length > 0 && (
         <div className="flex flex-wrap gap-1">
-          {matchingProducts.map((p: Record<string, unknown>) => (
+          {matchingProducts.map((p: { id: string; name: string }) => (
             <Badge key={String(p.id)} variant="outline" className="text-xs">{String(p.name)}</Badge>
           ))}
         </div>

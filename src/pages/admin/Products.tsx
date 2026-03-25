@@ -1,19 +1,6 @@
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  collection,
-  query,
-  orderBy,
-  getDocs,
-  where,
-  doc,
-  setDoc,
-  updateDoc,
-  deleteDoc,
-  addDoc,
-} from "firebase/firestore";
-import { db } from "@/integrations/firebase/config";
-import { functions, httpsCallable } from "@/integrations/firebase/config";
+import { apiJson } from "@/lib/api";
 import { formatPrice } from "@/lib/formatters";
 import { useCategories } from "@/hooks/useProducts";
 import { useImageUpload } from "@/hooks/useImageUpload";
@@ -73,53 +60,12 @@ const AdminProducts = () => {
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["admin-products"],
-    queryFn: async () => {
-      const productsSnap = await getDocs(
-        query(collection(db, "products"), orderBy("created_at", "desc"))
-      );
-      const productIds = productsSnap.docs.map((d) => d.id);
-      const [variantsSnap, categoriesSnap] = await Promise.all([
-        productIds.length > 0
-          ? getDocs(
-              query(
-                collection(db, "product_variants"),
-                where("product_id", "in", productIds.slice(0, 30))
-              )
-            )
-          : Promise.resolve({ docs: [] }),
-        getDocs(collection(db, "categories")),
-      ]);
-      const categoryMap = new Map(categoriesSnap.docs.map((d) => [d.id, { name: d.data().name }]));
-      const variantsByProduct = new Map<string, Record<string, unknown>[]>();
-      variantsSnap.docs.forEach((d) => {
-        const v = { id: d.id, ...d.data() };
-        const pid = v.product_id as string;
-        if (!variantsByProduct.has(pid)) variantsByProduct.set(pid, []);
-        variantsByProduct.get(pid)!.push(v);
-      });
-      return productsSnap.docs.map((d) => {
-        const p = d.data();
-        return {
-          id: d.id,
-          ...p,
-          categories: p.category_id ? categoryMap.get(p.category_id) : null,
-          product_variants: variantsByProduct.get(d.id) || [],
-        };
-      });
-    },
+    queryFn: async () => apiJson<Record<string, unknown>[]>("/api/admin/products"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const [imagesSnap, variantsSnap] = await Promise.all([
-        getDocs(query(collection(db, "product_images"), where("product_id", "==", id))),
-        getDocs(query(collection(db, "product_variants"), where("product_id", "==", id))),
-      ]);
-      await Promise.all([
-        ...imagesSnap.docs.map((d) => deleteDoc(d.ref)),
-        ...variantsSnap.docs.map((d) => deleteDoc(d.ref)),
-      ]);
-      await deleteDoc(doc(db, "products", id));
+      await apiJson(`/api/admin/products/${encodeURIComponent(id)}`, { method: "DELETE" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-products"] });
@@ -128,66 +74,16 @@ const AdminProducts = () => {
   });
 
   const saveMutation = useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
-      const now = new Date().toISOString();
-      const productPayload = {
-        name: data.name,
-        slug: data.slug,
-        description: data.description || null,
-        short_description: data.short_description || null,
-        base_price: Number(data.base_price),
-        compare_at_price: data.compare_at_price ? Number(data.compare_at_price) : null,
-        design_name: data.design_name || null,
-        category_id: data.category_id || null,
-        fabric: data.fabric || null,
-        dimensions: data.dimensions || null,
-        care_instructions: data.care_instructions || null,
-        tags: data.tags ? String(data.tags).split(",").map((t: string) => t.trim()).filter(Boolean) : null,
-        is_featured: data.is_featured,
-        is_active: data.is_active,
-        updated_at: now,
-      };
-
-      let productId: string;
-
-      if (editingProduct) {
-        productId = editingProduct.id as string;
-        await updateDoc(doc(db, "products", productId), productPayload);
-      } else {
-        const ref = doc(collection(db, "products"));
-        productId = ref.id;
-        await setDoc(ref, { ...productPayload, created_at: now });
-      }
-
-      for (const v of variants) {
-        if (!v.sku) continue;
-        const variantPayload = {
-          product_id: productId,
-          sku: v.sku,
-          color: v.color || null,
-          size: v.size || null,
-          price: Number(v.price || data.base_price),
-          compare_at_price: v.compare_at_price ? Number(v.compare_at_price) : null,
-          stock_quantity: Number(v.stock_quantity || 0),
-          is_active: true,
-          updated_at: now,
-        };
-        if (v.id) {
-          await updateDoc(doc(db, "product_variants", v.id), variantPayload);
-        } else {
-          await addDoc(collection(db, "product_variants"), { ...variantPayload, created_at: now });
-        }
-      }
-
-      const newImages = productImages.filter((img) => !img.id);
-      for (let i = 0; i < newImages.length; i++) {
-        await addDoc(collection(db, "product_images"), {
-          product_id: productId,
-          url: newImages[i].url,
-          sort_order: i,
-          is_primary: i === 0,
-        });
-      }
+    mutationFn: async () => {
+      await apiJson("/api/admin/products/upsert", {
+        method: "POST",
+        body: JSON.stringify({
+          editingId: editingProduct ? editingProduct.id : null,
+          product: { ...formData },
+          variants,
+          images: productImages,
+        }),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-products"] });
@@ -245,17 +141,21 @@ const AdminProducts = () => {
         color: String(v.color || ""),
         size: String(v.size || ""),
         price: String(v.price),
-        compare_at_price: "",
+        compare_at_price: v.compare_at_price != null ? String(v.compare_at_price) : "",
         stock_quantity: String(v.stock_quantity || 0),
       }))
     );
     if (pv.length === 0) setVariants([{ ...emptyVariant }]);
 
-    const imagesSnap = await getDocs(
-      query(collection(db, "product_images"), where("product_id", "==", product.id))
-    );
-    const sorted = imagesSnap.docs.sort((a, b) => (a.data().sort_order ?? 0) - (b.data().sort_order ?? 0));
-    setProductImages(sorted.map((d) => ({ id: d.id, url: d.data().url })));
+    const list = await apiJson<{ id: string; url: string }[]>(
+      `/api/admin/products/${encodeURIComponent(String(product.id))}/images`
+    ).catch(() => [] as { id: string; url: string }[]);
+
+    if (!list.length) {
+      setProductImages([]);
+    } else {
+      setProductImages(list.map((x) => ({ id: x.id, url: x.url })));
+    }
 
     setIsDialogOpen(true);
   };
@@ -277,12 +177,10 @@ const AdminProducts = () => {
     });
 
     try {
-      const bulkOps = httpsCallable<
-        { operation: string; data: { products: Record<string, unknown>[] } },
-        { created: number; errors?: string[] }
-      >(functions, "bulkOperations");
-      const result = await bulkOps({ operation: "csv-import", data: { products: productsList } });
-      const data = result.data;
+      const data = await apiJson<{ created: number; errors?: string[] }>("/api/admin/bulk", {
+        method: "POST",
+        body: JSON.stringify({ operation: "csv-import", data: { products: productsList } }),
+      });
       toast({
         title: "CSV Import Complete",
         description: `${data.created} products processed. ${data.errors?.length || 0} errors.`,
@@ -351,7 +249,9 @@ const AdminProducts = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredProducts.map((product: Record<string, unknown>) => (
+            {isLoading ? (
+              <TableRow><TableCell colSpan={8} className="text-center py-8">Loading…</TableCell></TableRow>
+            ) : filteredProducts.map((product: Record<string, unknown>) => (
               <TableRow key={String(product.id)}>
                 <TableCell>
                   <input
@@ -382,8 +282,8 @@ const AdminProducts = () => {
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-1">
-                    <button onClick={() => openEditDialog(product)} className="p-2 hover:bg-muted rounded"><Edit2 className="h-4 w-4" /></button>
-                    <button onClick={() => deleteMutation.mutate(product.id as string)} className="p-2 hover:bg-muted rounded text-destructive"><Trash2 className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => openEditDialog(product)} className="p-2 hover:bg-muted rounded"><Edit2 className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => deleteMutation.mutate(product.id as string)} className="p-2 hover:bg-muted rounded text-destructive"><Trash2 className="h-4 w-4" /></button>
                   </div>
                 </TableCell>
               </TableRow>
@@ -397,11 +297,11 @@ const AdminProducts = () => {
           <DialogHeader>
             <DialogTitle>{editingProduct ? "Edit Product" : "Add Product"}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(formData); }} className="space-y-4">
+          <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Name *</Label>
-                <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value, slug: e.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') })} required />
+                <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value, slug: e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") })} required />
               </div>
               <div>
                 <Label>Slug</Label>
@@ -487,8 +387,8 @@ const AdminProducts = () => {
                     onChange={async (e) => {
                       const files = Array.from(e.target.files || []);
                       if (files.length === 0) return;
-                      const pid = editingProduct?.id || `temp-${Date.now()}`;
-                      const urls = await uploadMultiple(files, String(pid));
+                      const pid = editingProduct?.id ? String(editingProduct.id) : `temp-${Date.now()}`;
+                      const urls = await uploadMultiple(files, pid);
                       setProductImages((prev) => [...prev, ...urls.map((u) => ({ url: u }))]);
                       if (imageInputRef.current) imageInputRef.current.value = "";
                     }}
@@ -508,16 +408,11 @@ const AdminProducts = () => {
               {productImages.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   {productImages.map((img, i) => (
-                    <div key={i} className="relative group w-20 h-20">
+                    <div key={img.id || i} className="relative group w-20 h-20">
                       <img src={img.url} alt="" className="w-20 h-20 object-cover rounded border border-border/30" />
                       <button
                         type="button"
-                        onClick={async () => {
-                          if (img.id) {
-                            await deleteDoc(doc(db, "product_images", img.id));
-                          }
-                          setProductImages((prev) => prev.filter((_, j) => j !== i));
-                        }}
+                        onClick={() => setProductImages((prev) => prev.filter((_, j) => j !== i))}
                         className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                       >
                         <X className="h-3 w-3" />

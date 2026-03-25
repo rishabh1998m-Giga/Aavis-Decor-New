@@ -1,8 +1,7 @@
 import { useParams, Link } from "react-router-dom";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "@/integrations/firebase/config";
+import { apiJson } from "@/lib/api";
 import StoreLayout from "@/components/layout/StoreLayout";
 import { formatPrice, formatDate } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
@@ -32,17 +31,13 @@ const OrderTracking = () => {
     queryKey: ["track-order", orderNumber],
     queryFn: async () => {
       if (!orderNumber) return null;
-      const ordersSnap = await getDocs(
-        query(collection(db, "orders"), where("order_number", "==", orderNumber))
-      );
-      if (ordersSnap.empty) return null;
-      const orderDoc = ordersSnap.docs[0];
-      const orderData = { id: orderDoc.id, ...orderDoc.data() };
-      const itemsSnap = await getDocs(
-        query(collection(db, "order_items"), where("order_id", "==", orderDoc.id))
-      );
-      const order_items = itemsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      return { ...orderData, order_items };
+      try {
+        return await apiJson<Record<string, unknown> & { order_items?: Record<string, unknown>[] }>(
+          `/api/orders/by-number/${encodeURIComponent(orderNumber)}`
+        );
+      } catch {
+        return null;
+      }
     },
     enabled: !!orderNumber,
   });
@@ -52,7 +47,7 @@ const OrderTracking = () => {
     if (searchInput.trim()) setOrderNumber(searchInput.trim());
   };
 
-  const currentStepIndex = statusIndex[order?.status || "pending"] ?? 0;
+  const currentStepIndex = statusIndex[String(order?.status || "pending")] ?? 0;
 
   return (
     <StoreLayout>
@@ -137,11 +132,11 @@ const OrderTracking = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs text-foreground/50">AWB / Tracking Number</p>
-                      <p className="font-mono font-medium text-sm">{order.tracking_number}</p>
+                      <p className="font-mono font-medium text-sm">{String(order.tracking_number)}</p>
                     </div>
                     {order.tracking_url && (
                       <Button variant="outline" size="sm" asChild>
-                        <a href={order.tracking_url} target="_blank" rel="noopener noreferrer" className="gap-2">
+                        <a href={String(order.tracking_url)} target="_blank" rel="noopener noreferrer" className="gap-2">
                           Track on Courier <ExternalLink className="h-3 w-3" />
                         </a>
                       </Button>

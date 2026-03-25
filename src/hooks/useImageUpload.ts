@@ -1,8 +1,5 @@
 import { useState } from "react";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { storage } from "@/integrations/firebase/config";
-
-const BUCKET_PATH = "product-images";
+import { apiUpload } from "@/lib/api";
 
 export const useImageUpload = () => {
   const [uploading, setUploading] = useState(false);
@@ -10,11 +7,10 @@ export const useImageUpload = () => {
   const uploadImage = async (file: File, productId: string): Promise<string | null> => {
     setUploading(true);
     try {
-      const ext = file.name.split(".").pop();
-      const fileName = `${productId}/${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
-      const storageRef = ref(storage, `${BUCKET_PATH}/${fileName}`);
-      await uploadBytes(storageRef, file, { cacheControl: "3600" });
-      const url = await getDownloadURL(storageRef);
+      const form = new FormData();
+      form.append("file", file);
+      const sp = new URLSearchParams({ productId });
+      const { url } = await apiUpload(`/api/admin/upload?${sp.toString()}`, form);
       return url;
     } catch (error) {
       console.error("Upload failed:", error);
