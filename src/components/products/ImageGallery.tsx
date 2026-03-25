@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
 
@@ -114,6 +116,12 @@ const ImageGallery = ({ images, productName, emptyLabel }: ImageGalleryProps) =>
           </DialogTrigger>
           
           <DialogContent className="max-w-4xl p-0 bg-transparent border-none">
+            <DialogTitle className="sr-only">
+              {currentImage.altText || `${productName} — enlarged image`}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Full-size product photo. Use close button to exit.
+            </DialogDescription>
             <img
               src={currentImage.url}
               alt={currentImage.altText || productName}

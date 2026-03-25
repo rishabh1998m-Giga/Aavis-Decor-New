@@ -12,7 +12,11 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -226,7 +230,12 @@ const AdminOrders = () => {
 
       <Dialog open={!!trackingOrderId} onOpenChange={() => setTrackingOrderId(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add Tracking Info</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Add Tracking Info</DialogTitle>
+            <DialogDescription className="sr-only">
+              Enter shipment tracking number and URL for this order.
+            </DialogDescription>
+          </DialogHeader>
           <div className="space-y-4">
             <div>
               <Label>AWB / Tracking Number</Label>

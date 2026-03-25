@@ -10,7 +10,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -130,7 +134,12 @@ const AdminCollections = () => {
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{editing ? "Edit Collection" : "Add Collection"}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Collection" : "Add Collection"}</DialogTitle>
+            <DialogDescription className="sr-only">
+              {editing ? "Update collection details and rules." : "Create a new collection."}
+            </DialogDescription>
+          </DialogHeader>
           <form
             onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }}
             className="space-y-4 max-h-[80vh] overflow-y-auto"

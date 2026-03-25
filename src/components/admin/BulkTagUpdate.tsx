@@ -4,7 +4,13 @@ import { apiJson } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Tags } from "lucide-react";
@@ -63,6 +69,9 @@ const BulkTagUpdate = ({ open, onOpenChange, selectedProductIds }: Props) => {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><Tags className="h-5 w-5" /> Bulk Tag Update</DialogTitle>
+          <DialogDescription className="sr-only">
+            Add, remove, or replace tags on the selected products.
+          </DialogDescription>
         </DialogHeader>
         <p className="text-sm text-foreground/60">{selectedProductIds.length} products selected</p>
         <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }} className="space-y-4">
