@@ -50,16 +50,22 @@ const VariantSelector = ({ variants, selectedVariant, onSelect }: VariantSelecto
 
   // Find variant matching selected options (with tolerant size matching)
   const findVariant = (color?: string, size?: string) => {
+    const hasColorFilter = Boolean(color?.trim());
+    const hasSizeFilter = Boolean(size?.trim());
     return (
       variants.find((v) => {
-        const colorMatch = !colors.length || norm(v.color) === norm(color);
-        const sizeMatch = !sizes.length || norm(v.size) === norm(size);
+        const colorMatch =
+          !colors.length || !hasColorFilter || norm(v.color) === norm(color);
+        const sizeMatch =
+          !sizes.length || !hasSizeFilter || norm(v.size) === norm(size);
         return colorMatch && sizeMatch && v.isActive;
       }) ||
-      (size
+      (hasSizeFilter
         ? variants.find((v) => {
-            const colorMatch = !colors.length || norm(v.color) === norm(color);
-            const sizeMatch = !sizes.length || normSize(v.size) === normSize(size);
+            const colorMatch =
+              !colors.length || !hasColorFilter || norm(v.color) === norm(color);
+            const sizeMatch =
+              !sizes.length || normSize(v.size) === normSize(size);
             return colorMatch && sizeMatch && v.isActive;
           })
         : undefined)

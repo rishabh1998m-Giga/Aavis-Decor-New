@@ -1,25 +1,80 @@
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
-import { useFeaturedProducts } from "@/hooks/useProducts";
+import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useFeaturedProducts, useProducts } from "@/hooks/useProducts";
 import heroImageFallback from "@/assets/hero-home.jpg";
 
 const HeroBanner = () => {
   const { data: featuredProducts = [] } = useFeaturedProducts();
-  const heroProduct = featuredProducts[0];
-  const heroImageUrl = heroProduct?.images?.find((img) => img.isPrimary)?.url ?? heroProduct?.images?.[0]?.url ?? null;
-  const heroSrc = heroImageUrl != null ? (heroImageUrl.startsWith("http") ? heroImageUrl : heroImageUrl) : heroImageFallback;
-  const heroAlt = heroProduct ? `${heroProduct.name} – Aavis Decor` : "Luxurious Indian home textiles by Aavis Decor";
+  const { data: allProducts = [] } = useProducts();
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  const slides = useMemo(() => {
+    const withImage = (p: (typeof allProducts)[number]) => {
+      const image =
+        p.images?.find((img) => img.isPrimary)?.url ?? p.images?.[0]?.url ?? null;
+      return image ? { product: p, src: image } : null;
+    };
+
+    const featuredSlides = featuredProducts
+      .map(withImage)
+      .filter((x): x is NonNullable<typeof x> => Boolean(x));
+    if (featuredSlides.length >= 3) return featuredSlides.slice(0, 6);
+
+    const seenProductIds = new Set(featuredSlides.map((s) => s.product.id));
+    const fallbackSlides = allProducts
+      .filter((p) => !seenProductIds.has(p.id))
+      .map(withImage)
+      .filter((x): x is NonNullable<typeof x> => Boolean(x));
+
+    return [...featuredSlides, ...fallbackSlides].slice(0, 6);
+  }, [featuredProducts, allProducts]);
+
+  useEffect(() => {
+    setCurrentSlide(0);
+  }, [slides.length]);
+
+  useEffect(() => {
+    if (slides.length <= 1) return;
+    const id = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
+    }, 5000);
+    return () => clearInterval(id);
+  }, [slides.length]);
+
+  const active = slides[currentSlide];
+  const heroSrc = active?.src ?? heroImageFallback;
+  const heroAlt = active
+    ? `${active.product.name} – Aavis Decor`
+    : "Luxurious Indian home textiles by Aavis Decor";
+
+  const goPrev = () => {
+    if (slides.length <= 1) return;
+    setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
+  };
+  const goNext = () => {
+    if (slides.length <= 1) return;
+    setCurrentSlide((prev) => (prev + 1) % slides.length);
+  };
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      {/* Background image: first featured product or fallback */}
+      {/* Background image carousel from actual catalog images */}
       <div className="absolute inset-0">
-        <img
-          src={heroSrc}
-          alt={heroAlt}
-          className="w-full h-full object-cover"
-          loading="eager"
-        />
+        <AnimatePresence mode="wait">
+          <motion.img
+            key={heroSrc}
+            src={heroSrc}
+            alt={heroAlt}
+            className="w-full h-full object-cover"
+            loading="eager"
+            initial={{ opacity: 0.35, scale: 1.03 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0.2, scale: 1.01 }}
+            transition={{ duration: 0.55, ease: "easeOut" }}
+          />
+        </AnimatePresence>
         <div className="absolute inset-0 bg-gradient-to-r from-foreground/70 via-foreground/40 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-t from-foreground/50 via-transparent to-foreground/20" />
       </div>
@@ -79,6 +134,45 @@ const HeroBanner = () => {
           </motion.div>
         </div>
       </div>
+
+      {slides.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={goPrev}
+            className="absolute left-4 md:left-6 top-1/2 -translate-y-1/2 z-20 h-10 w-10 rounded-full bg-background/20 text-background hover:bg-background/35 transition-colors flex items-center justify-center"
+            aria-label="Previous hero image"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={goNext}
+            className="absolute right-4 md:right-6 top-1/2 -translate-y-1/2 z-20 h-10 w-10 rounded-full bg-background/20 text-background hover:bg-background/35 transition-colors flex items-center justify-center"
+            aria-label="Next hero image"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </>
+      )}
+
+      {slides.length > 1 && (
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-20 flex gap-2">
+          {slides.map((s, idx) => (
+            <button
+              key={`${s.product.id}-${idx}`}
+              type="button"
+              onClick={() => setCurrentSlide(idx)}
+              className={`h-1.5 transition-all ${
+                idx === currentSlide
+                  ? "w-6 bg-background"
+                  : "w-3 bg-background/50 hover:bg-background/75"
+              }`}
+              aria-label={`Go to hero slide ${idx + 1}`}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Scroll indicator */}
       <motion.div

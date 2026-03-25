@@ -5,7 +5,7 @@ import ProductCard from "@/components/products/ProductCard";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const FeaturedProducts = () => {
-  const { data: products = [], isLoading } = useFeaturedProducts();
+  const { data: products = [], isLoading, isError } = useFeaturedProducts();
 
   return (
     <section className="py-24 md:py-32">
@@ -43,11 +43,25 @@ const FeaturedProducts = () => {
               </div>
             ))}
           </div>
-        ) : (
+        ) : products.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8 md:gap-x-6 md:gap-y-12">
             {products.map((product, i) => (
               <ProductCard key={product.id} product={product} index={i} />
             ))}
+          </div>
+        ) : (
+          <div className="rounded border border-border/40 bg-muted/20 p-10 text-center">
+            <p className="text-foreground/70 text-sm">
+              {isError
+                ? "Best sellers are temporarily unavailable."
+                : "No featured products yet. Import catalog data to populate this section."}
+            </p>
+            <Link
+              to="/collections"
+              className="mt-4 inline-block text-xs tracking-widest uppercase text-foreground font-medium border-b border-foreground/30 pb-1 hover:border-foreground transition-colors"
+            >
+              View all products
+            </Link>
           </div>
         )}
       </div>

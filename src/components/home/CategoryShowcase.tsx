@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowRight } from "lucide-react";
 
 const CategoryShowcase = () => {
-  const { data: categories = [], isLoading } = useCategories();
+  const { data: categories = [], isLoading, isError } = useCategories();
   const { data: imageMap = new Map<string, string>() } = useCategoryImages(categories);
 
   return (
@@ -43,7 +43,11 @@ const CategoryShowcase = () => {
                   transition={{ duration: 0.5 }}
                   className="md:col-span-3 text-center py-12"
                 >
-                  <p className="text-foreground/60 text-sm mb-4">Unable to load categories. Try refreshing.</p>
+                  <p className="text-foreground/60 text-sm mb-4">
+                    {isError
+                      ? "Unable to load categories. Try refreshing."
+                      : "No categories available yet. Import catalog data to populate this section."}
+                  </p>
                   <Link
                     to="/collections"
                     className="inline-block text-xs tracking-widest uppercase text-foreground font-medium border-b border-foreground/30 pb-1 hover:border-foreground transition-colors"
