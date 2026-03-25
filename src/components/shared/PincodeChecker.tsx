@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { apiJson } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2, MapPin, Check, X, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useEffect } from "react";
 
 interface PincodeCheckerProps {
   onPincodeVerified?: (data: {
@@ -29,20 +28,27 @@ type PincodeRow = {
 const PincodeChecker = ({ onPincodeVerified }: PincodeCheckerProps) => {
   const [pincode, setPincode] = useState("");
   const [checkPincode, setCheckPincode] = useState<string | null>(null);
-
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["pincode", checkPincode],
-    queryFn: async () => {
-      if (!checkPincode) return null;
-      return apiJson<PincodeRow | null>(`/api/pincode/${encodeURIComponent(checkPincode)}`);
-    },
-    enabled: !!checkPincode && checkPincode.length === 6,
-    retry: false,
-  });
+  const [data, setData] = useState<PincodeRow | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleCheck = () => {
     if (pincode.length === 6) {
       setCheckPincode(pincode);
+      setIsLoading(true);
+      // Static catalog mode: we don't call the API. Assume serviceable and show consistent UI.
+      // If you later want real pincode support, re-enable the API call.
+      setTimeout(() => {
+        setData({
+          id: `static-${pincode}`,
+          pincode,
+          is_serviceable: true,
+          is_cod_available: true,
+          city: null,
+          state: null,
+          estimated_days: 5,
+        });
+        setIsLoading(false);
+      }, 250);
     }
   };
 
@@ -52,7 +58,8 @@ const PincodeChecker = ({ onPincodeVerified }: PincodeCheckerProps) => {
     }
   };
 
-  if (data && onPincodeVerified) {
+  useEffect(() => {
+    if (!data || !onPincodeVerified) return;
     onPincodeVerified({
       pincode: data.pincode,
       city: data.city || "",
@@ -60,11 +67,11 @@ const PincodeChecker = ({ onPincodeVerified }: PincodeCheckerProps) => {
       estimatedDays: data.estimated_days || 5,
       isCodAvailable: data.is_cod_available ?? true,
     });
-  }
+  }, [data, onPincodeVerified]);
 
   const isChecked = checkPincode && checkPincode.length === 6;
-  const isServiceable = !isLoading && !isError && data;
-  const isNotServiceable = !isLoading && (isError || (isChecked && !data));
+  const isServiceable = !isLoading && Boolean(data);
+  const isNotServiceable = !isLoading && Boolean(isChecked && !data);
 
   return (
     <div className="space-y-3">

@@ -8,7 +8,6 @@ import PincodeChecker from "@/components/shared/PincodeChecker";
 import ProductGrid from "@/components/products/ProductGrid";
 import { useProduct, useProducts, ProductVariant } from "@/hooks/useProducts";
 import { useCart } from "@/contexts/CartContext";
-import { apiJson } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,6 +19,7 @@ import { ChevronRight, Minus, Plus, ShoppingBag, Heart, Share2 } from "lucide-re
 import { useToast } from "@/hooks/use-toast";
 import PageMeta from "@/components/seo/PageMeta";
 import { resolveDisplayedImages } from "@/lib/productImages";
+import catalog from "@/generated/catalog.json";
 
 const Product = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -92,26 +92,23 @@ const Product = () => {
     if (isLoading || product || !slug) return;
     const looksLikeId = slug.length >= 15 && slug.length <= 30 && /^[a-zA-Z0-9_-]+$/.test(slug);
     if (!looksLikeId) return;
-    let cancelled = false;
-    apiJson<{ slug: string }>(`/api/products/by-id/${encodeURIComponent(slug)}`)
-      .then((data) => {
-        if (cancelled || !data?.slug) return;
-        if (data.slug !== slug) navigate(`/product/${data.slug}`, { replace: true });
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
+    const rawProducts = catalog.products as Array<Record<string, unknown>>;
+    const found = rawProducts.find((p) => String(p.id) === slug && p.is_active !== false);
+    if (found && typeof found.slug === "string" && found.slug) {
+      navigate(`/product/${found.slug}`, { replace: true });
+    }
   }, [slug, isLoading, product, navigate]);
 
   useEffect(() => {
     if (isLoading || product || !slug || !error) return;
-    let cancelled = false;
-    apiJson<{ slug: string }>(`/api/products/resolve-slug/${encodeURIComponent(slug)}`)
-      .then((data) => {
-        if (cancelled || !data?.slug) return;
-        navigate(`/product/${data.slug}`, { replace: true });
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
+    const rawProducts = catalog.products as Array<Record<string, unknown>>;
+    const found = rawProducts.find((p) => {
+      const aliases = (p.slug_aliases as unknown) as string[] | undefined;
+      return Array.isArray(aliases) ? aliases.includes(slug) : false;
+    });
+    if (found && typeof found.slug === "string" && found.slug) {
+      navigate(`/product/${found.slug}`, { replace: true });
+    }
   }, [slug, isLoading, product, error, navigate]);
 
   if (isLoading) {

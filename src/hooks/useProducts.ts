@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiJson, ApiRequestError } from "@/lib/api";
 import { resolveProductGstRate } from "@/lib/gstRate";
+import catalog from "@/generated/catalog.json";
 
 export interface Product {
   id: string;
@@ -99,6 +99,7 @@ export type ApiProduct = {
   description?: string | null;
   short_description?: string | null;
   base_price: number;
+  max_variant_price?: number | null;
   compare_at_price?: number | null;
   gst_rate?: number | null;
   category_id?: string | null;
@@ -213,24 +214,33 @@ export const useCategories = () => {
   return useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
-      const rows = await apiJson<ApiCategory[]>("/api/categories");
-      return rows.map((c) => mapCategoryFromApi(c)!);
+      return (catalog.categories as ApiCategory[]).map((c) => mapCategoryFromApi(c)!);
     },
   });
 };
 
 export const useCategoryImages = (categories: Category[]) => {
+  // Static mode: compute representative images locally for any categories
+  // that have `imageUrl` missing in `catalog.json`.
   const needImage = categories.filter((c) => !c.imageUrl);
   return useQuery({
     queryKey: ["category-images", needImage.map((c) => c.id)],
     queryFn: async (): Promise<Map<string, string>> => {
       const map = new Map<string, string>();
       if (needImage.length === 0) return map;
-      const data = await apiJson<Record<string, string>>("/api/categories/representative-images", {
-        method: "POST",
-        body: JSON.stringify({ ids: needImage.map((c) => c.id) }),
-      });
-      Object.entries(data).forEach(([k, v]) => { if (v) map.set(k, v); });
+
+      const rawProducts = catalog.products as ApiProduct[];
+
+      for (const cat of needImage) {
+        const p = rawProducts
+          .filter((rp) => rp.is_active !== false && rp.category_id === cat.id)
+          .sort((a, b) => Date.parse(String(b.created_at ?? "")) - Date.parse(String(a.created_at ?? "")))[0];
+        const primary =
+          p?.images?.find((img) => img.is_primary) ||
+          (p?.images ?? []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))[0];
+        if (primary?.url) map.set(cat.id, primary.url);
+      }
+
       return map;
     },
     enabled: needImage.length > 0,
@@ -266,38 +276,111 @@ export const usePaginatedProducts = (params: PaginatedProductsParams = {}) => {
       inStockOnly,
     ],
     queryFn: async (): Promise<PaginatedResult> => {
-      const sp = new URLSearchParams();
-      sp.set("page", String(page));
-      sp.set("pageSize", String(pageSize));
-      if (categorySlug) sp.set("categorySlug", categorySlug);
-      sp.set("sortBy", sortBy);
-      if (fabric) sp.set("fabric", fabric);
-      if (priceMin != null) sp.set("priceMin", String(priceMin));
-      if (priceMax != null) sp.set("priceMax", String(priceMax));
-      if (colors?.length) sp.set("colors", colors.join(","));
-      if (sizes?.length) sp.set("sizes", sizes.join(","));
-      if (inStockOnly) sp.set("inStockOnly", "true");
+      const rawProducts = catalog.products as ApiProduct[];
+      const rawCategories = catalog.categories as ApiCategory[];
 
-      const res = await apiJson<{
-        products: ApiProduct[];
-        totalCount: number;
-        totalPages: number;
-        currentPage: number;
-      }>(`/api/products/paginated?${sp.toString()}`);
-
-      const categoriesSnap = await apiJson<ApiCategory[]>("/api/categories");
+      // Build categories map once for consistent gst + breadcrumb logic.
       const categoriesMap = new Map<string, Category>();
-      categoriesSnap.forEach((c) => {
+      rawCategories.forEach((c) => {
         const mc = mapCategoryFromApi(c);
         if (mc) categoriesMap.set(c.id, mc);
       });
 
-      const products = res.products.map((p) => mapApiProductToDetails(p, categoriesMap));
+      let categoryId: string | null = null;
+      const normalizedCategorySlug = normalizeSlug(categorySlug);
+      if (normalizedCategorySlug) {
+        const match = rawCategories.find(
+          (c) => normalizeSlug(c.slug ?? "") === normalizedCategorySlug
+        );
+        if (!match) {
+          return { products: [], totalCount: 0, totalPages: 0, currentPage: page };
+        }
+        categoryId = match.id;
+      }
+
+      const activeProducts = rawProducts.filter((p) => p.is_active !== false);
+
+      const hasPriceFilter = priceMin != null || priceMax != null;
+      const hasPriceMin = priceMin != null && priceMin > 0;
+
+      // Base filtering mirrors server-side whereClause (colors/sizes/inStock are applied after slicing).
+      const baseFiltered = activeProducts.filter((p) => {
+        if (categoryId && p.category_id !== categoryId) return false;
+        if (fabric && (p.fabric ?? null) !== fabric) return false;
+        if (hasPriceMin) {
+          const maxVariant = Number(p.max_variant_price ?? 0);
+          if (!(maxVariant >= (priceMin as number))) return false;
+        }
+        if (priceMax != null && priceMax > 0) {
+          const base = Number(p.base_price ?? 0);
+          if (!(base <= priceMax)) return false;
+        }
+        return true;
+      });
+
+      const totalCount = baseFiltered.length;
+
+      const orderParts = (() => {
+        if (hasPriceMin) return "priceMin";
+        if (sortBy === "price-high") return "priceHigh";
+        if (sortBy === "price-low" || hasPriceFilter) return "priceLowOrFilter";
+        if (sortBy === "name") return "name";
+        return "newest";
+      })();
+
+      baseFiltered.sort((a, b) => {
+        const aCreated = Date.parse(String(a.created_at ?? 0));
+        const bCreated = Date.parse(String(b.created_at ?? 0));
+        const aBase = Number(a.base_price ?? 0);
+        const bBase = Number(b.base_price ?? 0);
+        const aMax = Number(a.max_variant_price ?? 0);
+        const bMax = Number(b.max_variant_price ?? 0);
+
+        switch (orderParts) {
+          case "priceMin": {
+            // [asc(max_variant_price), desc(createdAt)]
+            if (aMax !== bMax) return aMax - bMax;
+            return bCreated - aCreated;
+          }
+          case "priceHigh":
+            return bBase - aBase;
+          case "priceLowOrFilter":
+            return aBase - bBase;
+          case "name":
+            return String(a.name ?? "").localeCompare(String(b.name ?? ""));
+          case "newest":
+          default:
+            return bCreated - aCreated;
+        }
+      });
+
+      const offset = (page - 1) * pageSize;
+      const sliced = baseFiltered.slice(offset, offset + pageSize);
+
+      // Post-filter: mirrors server behavior for colors/sizes/inStockOnly.
+      let products = sliced.map((p) => mapApiProductToDetails(p, categoriesMap));
+
+      if (colors?.length) {
+        products = products.filter((p) =>
+          p.variants.some((v) => v.color && colors.includes(v.color))
+        );
+      }
+      if (sizes?.length) {
+        products = products.filter((p) =>
+          p.variants.some((v) => v.size && sizes.includes(v.size))
+        );
+      }
+      if (inStockOnly) {
+        products = products.filter((p) =>
+          p.variants.some((v) => v.stockQuantity > 0)
+        );
+      }
+
       return {
         products,
-        totalCount: res.totalCount,
-        totalPages: res.totalPages,
-        currentPage: res.currentPage,
+        totalCount,
+        totalPages: Math.ceil(totalCount / pageSize),
+        currentPage: page,
       };
     },
   });
@@ -307,17 +390,32 @@ export const useProducts = (categorySlug?: string) => {
   return useQuery({
     queryKey: ["products", categorySlug],
     queryFn: async () => {
-      const sp = new URLSearchParams();
-      if (categorySlug) sp.set("categorySlug", normalizeSlug(categorySlug));
-      const q = sp.toString();
-      const rows = await apiJson<ApiProduct[]>(`/api/products/list${q ? `?${q}` : ""}`);
-      const categoriesSnap = await apiJson<ApiCategory[]>("/api/categories");
+      const rawProducts = catalog.products as ApiProduct[];
+      const rawCategories = catalog.categories as ApiCategory[];
+
       const categoriesMap = new Map<string, Category>();
-      categoriesSnap.forEach((c) => {
+      rawCategories.forEach((c) => {
         const mc = mapCategoryFromApi(c);
         if (mc) categoriesMap.set(c.id, mc);
       });
-      return rows.map((p) => mapApiProductToDetails(p, categoriesMap));
+
+      let categoryId: string | null = null;
+      const normalizedCategorySlug = normalizeSlug(categorySlug);
+      if (normalizedCategorySlug) {
+        const match = rawCategories.find(
+          (c) => normalizeSlug(c.slug ?? "") === normalizedCategorySlug
+        );
+        if (match) categoryId = match.id;
+        else categoryId = null;
+      }
+
+      const filtered = rawProducts
+        .filter((p) => p.is_active !== false)
+        .filter((p) => (categoryId ? p.category_id === categoryId : true))
+        .sort((a, b) => Date.parse(String(b.created_at ?? 0)) - Date.parse(String(a.created_at ?? 0)))
+        .slice(0, 50);
+
+      return filtered.map((p) => mapApiProductToDetails(p, categoriesMap));
     },
   });
 };
@@ -326,16 +424,18 @@ export const useProduct = (slug: string) => {
   return useQuery({
     queryKey: ["product", slug],
     queryFn: async () => {
-      try {
-        const enc = encodeURIComponent(slug);
-        const row = await apiJson<ApiProduct>(`/api/products/by-slug/${enc}`);
-        return mapApiProductToDetails(row);
-      } catch (e) {
-        if (e instanceof ApiRequestError && e.status === 404) {
-          throw new Error("Product not found");
-        }
-        throw e;
-      }
+      const rawProducts = catalog.products as ApiProduct[];
+      const row = rawProducts.find((p) => p.is_active !== false && p.slug === slug);
+      if (!row) throw new Error("Product not found");
+
+      const rawCategories = catalog.categories as ApiCategory[];
+      const categoriesMap = new Map<string, Category>();
+      rawCategories.forEach((c) => {
+        const mc = mapCategoryFromApi(c);
+        if (mc) categoriesMap.set(c.id, mc);
+      });
+
+      return mapApiProductToDetails(row, categoriesMap);
     },
     enabled: !!slug,
   });
@@ -345,14 +445,20 @@ export const useFeaturedProducts = () => {
   return useQuery({
     queryKey: ["featured-products"],
     queryFn: async () => {
-      const rows = await apiJson<ApiProduct[]>("/api/products/featured");
-      const categoriesSnap = await apiJson<ApiCategory[]>("/api/categories");
+      const rawProducts = catalog.products as ApiProduct[];
+      const rawCategories = catalog.categories as ApiCategory[];
+
       const categoriesMap = new Map<string, Category>();
-      categoriesSnap.forEach((c) => {
+      rawCategories.forEach((c) => {
         const mc = mapCategoryFromApi(c);
         if (mc) categoriesMap.set(c.id, mc);
       });
-      return rows.map((p) => mapApiProductToDetails(p, categoriesMap));
+
+      return rawProducts
+        .filter((p) => p.is_active !== false && p.is_featured === true)
+        .sort((a, b) => Date.parse(String(b.created_at ?? 0)) - Date.parse(String(a.created_at ?? 0)))
+        .slice(0, 8)
+        .map((p) => mapApiProductToDetails(p, categoriesMap));
     },
   });
 };
