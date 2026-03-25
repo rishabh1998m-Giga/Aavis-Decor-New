@@ -188,7 +188,8 @@ const Checkout = () => {
   return (
     <StoreLayout>
       <PageMeta title="Checkout" description="Complete your Aavis Decor order. Secure checkout with COD or UPI." canonical="/checkout" noIndex />
-      <div className="pt-32 pb-20">
+      {/* Header is fixed; give extra top padding on smaller screens to avoid cutting step labels. */}
+      <div className="pt-40 pb-20 lg:pt-32">
         <div className="container max-w-4xl">
           <div className="flex items-center justify-center gap-4 mb-10">
             {steps.map((step, i) => (

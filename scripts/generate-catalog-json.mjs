@@ -366,6 +366,27 @@ async function main() {
     });
   }
 
+  // Backfill `home-textiles` if the Excel sheet doesn't provide that category.
+  // This mirrors `scripts/assign-home-textiles.js` behavior for the DB.
+  {
+    const home = categoriesBySlug.get("home-textiles") || null;
+    const table = categoriesBySlug.get("table-linens") || null;
+    if (home && table) {
+      const hasHome = products.some((p) => p.category_id === home.id && p.is_active);
+      if (!hasHome) {
+        const donor = products
+          .filter((p) => p.category_id === table.id && p.is_active)
+          .sort((a, b) => Date.parse(String(b.created_at ?? 0)) - Date.parse(String(a.created_at ?? 0)))
+          .slice(0, 10);
+        for (const p of donor) {
+          p.category_id = home.id;
+          p.updated_at = now;
+        }
+        console.log(`Backfilled home-textiles from table-linens: ${donor.length} products`);
+      }
+    }
+  }
+
   // Fill category representative images (like `/api/categories/representative-images`).
   for (const cat of categories) {
     const catProducts = products
