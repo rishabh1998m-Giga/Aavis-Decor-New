@@ -376,7 +376,11 @@ async function main() {
       if (!hasHome) {
         const donor = products
           .filter((p) => p.category_id === table.id && p.is_active)
-          .sort((a, b) => Date.parse(String(b.created_at ?? 0)) - Date.parse(String(a.created_at ?? 0)))
+          .sort(
+            (a, b) =>
+              Date.parse(String(b.created_at ?? 0)) -
+              Date.parse(String(a.created_at ?? 0))
+          )
           .slice(0, 10);
         for (const p of donor) {
           p.category_id = home.id;

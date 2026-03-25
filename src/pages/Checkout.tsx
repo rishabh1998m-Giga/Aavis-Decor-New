@@ -188,7 +188,7 @@ const Checkout = () => {
   return (
     <StoreLayout>
       <PageMeta title="Checkout" description="Complete your Aavis Decor order. Secure checkout with COD or UPI." canonical="/checkout" noIndex />
-      {/* Header is fixed; give extra top padding on smaller screens to avoid cutting step labels. */}
+      {/* Header is fixed; give extra top padding so step labels don't get cut off */}
       <div className="pt-40 pb-20 lg:pt-32">
         <div className="container max-w-4xl">
           <div className="flex items-center justify-center gap-4 mb-10">
