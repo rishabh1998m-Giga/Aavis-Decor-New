@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import StoreLayout from "@/components/layout/StoreLayout";
 import LoginForm from "@/components/auth/LoginForm";
@@ -10,12 +10,16 @@ const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
     if (!loading && user) {
-      navigate("/");
+      // Honour ?next= (kept same-origin: must start with "/" and not "//").
+      const next = searchParams.get("next");
+      const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+      navigate(safeNext, { replace: true });
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate, searchParams]);
 
   return (
     <StoreLayout>

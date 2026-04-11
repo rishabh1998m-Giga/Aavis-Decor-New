@@ -241,6 +241,35 @@ const Checkout = () => {
     );
   }
 
+  // Gate on auth BEFORE showing the 3-step flow. Previously we let customers
+  // fill the whole form and only blocked them at "Pay Now" — bad UX.
+  if (!user) {
+    return (
+      <StoreLayout>
+        <PageMeta title="Checkout" description="Sign in to complete your Aavis Decor order." canonical="/checkout" noIndex />
+        <div className="pb-20 min-h-screen">
+          <div className="container max-w-md">
+            <div className="border border-border/30 rounded-md p-8 text-center">
+              <h1 className="font-display text-2xl mb-3">Sign in to continue</h1>
+              <p className="text-sm text-foreground/60 mb-6">
+                You need an account to place an order. Your bag will be kept safe while you sign in.
+              </p>
+              <Button
+                asChild
+                className="w-full h-12 bg-foreground text-background hover:bg-foreground/90 text-xs tracking-widest mb-3"
+              >
+                <Link to="/auth?next=/checkout">SIGN IN OR CREATE ACCOUNT</Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full text-xs tracking-widest">
+                <Link to="/cart">BACK TO BAG</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </StoreLayout>
+    );
+  }
+
   const steps: { key: Step; label: string }[] = [
     { key: "address", label: "Address" },
     { key: "payment", label: "Payment" },
