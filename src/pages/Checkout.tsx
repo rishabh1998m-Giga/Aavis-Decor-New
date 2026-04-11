@@ -28,7 +28,7 @@ type Step = "address" | "payment" | "review";
 
 const Checkout = () => {
   const { items, subtotal, clearCart, embeddedGstTotal } = useCart();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState<Step>("address");
@@ -236,6 +236,18 @@ const Checkout = () => {
         <div className="pb-20 min-h-screen container max-w-lg text-center">
           <h1 className="font-display text-2xl mb-4">Your bag is empty</h1>
           <Button asChild><Link to="/">Continue Shopping</Link></Button>
+        </div>
+      </StoreLayout>
+    );
+  }
+
+  // Wait for session hydration — don't flash sign-in gate while auth resolves.
+  if (authLoading) {
+    return (
+      <StoreLayout>
+        <PageMeta title="Checkout" description="Complete your Aavis Decor order." canonical="/checkout" noIndex />
+        <div className="pb-20 min-h-screen flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-foreground/40" />
         </div>
       </StoreLayout>
     );
