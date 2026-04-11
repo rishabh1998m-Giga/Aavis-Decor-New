@@ -74,11 +74,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signUp = async (email: string, password: string, fullName?: string) => {
     try {
-      await apiJson("/api/auth/register", {
-        method: "POST",
-        body: JSON.stringify({ email, password, fullName }),
-      });
-      await refreshMe();
+      const resp = await apiJson<{ user: { id: string; email: string; role: UserRole } }>(
+        "/api/auth/register",
+        { method: "POST", body: JSON.stringify({ email, password, fullName }) }
+      );
+      const u: AuthUser = { id: resp.user.id, email: resp.user.email, fullName: fullName ?? null };
+      setUser(u);
+      setSession({ user: u });
+      setUserRole(resp.user.role);
       return { error: null };
     } catch (err) {
       return { error: err instanceof Error ? err : new Error(String(err)) };
@@ -87,11 +90,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signIn = async (email: string, password: string) => {
     try {
-      await apiJson("/api/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email, password }),
-      });
-      await refreshMe();
+      const resp = await apiJson<{ user: { id: string; email: string; role: UserRole } }>(
+        "/api/auth/login",
+        { method: "POST", body: JSON.stringify({ email, password }) }
+      );
+      const u: AuthUser = { id: resp.user.id, email: resp.user.email, fullName: null };
+      setUser(u);
+      setSession({ user: u });
+      setUserRole(resp.user.role);
       return { error: null };
     } catch (err) {
       return { error: err instanceof Error ? err : new Error(String(err)) };
