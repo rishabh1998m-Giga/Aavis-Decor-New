@@ -1,11 +1,18 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { eq, desc, asc, sql, inArray } from "drizzle-orm";
+import { eq, desc, asc, sql, inArray, and, or, like, SQL } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "../db/index.js";
 import * as t from "../db/schema.js";
 import { ApiError, sendError } from "../lib/errors.js";
 import { getAuthFromRequest } from "../plugins/requestAuth.js";
 import { runBulkOperation } from "../services/orderService.js";
+import {
+  createSROrder,
+  getSRCouriers,
+  assignAWB,
+  generateLabel,
+  trackByAWB,
+} from "../services/shiprocketService.js";
 
 async function assertAdmin(req: FastifyRequest) {
   const auth = await getAuthFromRequest(req);
@@ -147,22 +154,85 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     }));
   });
 
-    inner.get("/orders", async (_req, reply) => {
-    const orderRows = await db.select().from(t.orders).orderBy(desc(t.orders.createdAt));
-    const result = [];
-    for (const order of orderRows) {
-      const items = await db
+    inner.get("/orders", async (req, reply) => {
+      const q = req.query as {
+        page?: string;
+        pageSize?: string;
+        status?: string;
+        payment_status?: string;
+        fulfillment_status?: string;
+        q?: string;
+      };
+
+      const page = Math.max(1, Number(q.page) || 1);
+      const pageSize = Math.min(100, Math.max(1, Number(q.pageSize) || 25));
+      const offset = (page - 1) * pageSize;
+
+      const filters: SQL[] = [];
+      if (q.status && q.status !== "all") filters.push(eq(t.orders.status, q.status));
+      if (q.payment_status && q.payment_status !== "all") filters.push(eq(t.orders.paymentStatus, q.payment_status));
+      if (q.fulfillment_status && q.fulfillment_status !== "all") filters.push(eq(t.orders.fulfillmentStatus, q.fulfillment_status));
+      if (q.q && q.q.trim()) {
+        const needle = `%${q.q.trim().toLowerCase()}%`;
+        // Search on order_number, shiprocket AWB, razorpay id. Customer name
+        // lives in jsonb shipping_address — matched via sql fragment.
+        filters.push(
+          or(
+            sql`LOWER(${t.orders.orderNumber}) LIKE ${needle}`,
+            sql`LOWER(COALESCE(${t.orders.shiprocketAwb}, '')) LIKE ${needle}`,
+            sql`LOWER(COALESCE(${t.orders.razorpayPaymentId}, '')) LIKE ${needle}`,
+            sql`LOWER(COALESCE(${t.orders.shippingAddress}->>'full_name', '')) LIKE ${needle}`,
+            sql`LOWER(COALESCE(${t.orders.shippingAddress}->>'phone', '')) LIKE ${needle}`
+          )!
+        );
+      }
+
+      const whereClause = filters.length ? and(...filters) : undefined;
+
+      const [{ count: totalCount }] = await db
+        .select({ count: sql<number>`CAST(COUNT(*) AS INTEGER)` })
+        .from(t.orders)
+        .where(whereClause as SQL | undefined);
+
+      const orderRows = await db
         .select()
-        .from(t.orderItems)
-        .where(eq(t.orderItems.orderId, order.id));
-      result.push({
+        .from(t.orders)
+        .where(whereClause as SQL | undefined)
+        .orderBy(desc(t.orders.createdAt))
+        .limit(pageSize)
+        .offset(offset);
+
+      const orderIds = orderRows.map((o) => o.id);
+      const allItems = orderIds.length
+        ? await db.select().from(t.orderItems).where(inArray(t.orderItems.orderId, orderIds))
+        : [];
+      const itemsByOrder = new Map<string, typeof allItems>();
+      for (const it of allItems) {
+        const list = itemsByOrder.get(it.orderId) ?? [];
+        list.push(it);
+        itemsByOrder.set(it.orderId, list);
+      }
+
+      const rows = orderRows.map((order) => ({
         id: order.id,
         ...firestoreOrderShape(order),
-        order_items: items.map(firestoreItemShape),
-      });
-    }
-    return result;
-  });
+        order_items: (itemsByOrder.get(order.id) ?? []).map(firestoreItemShape),
+      }));
+
+      const total = Number(totalCount) || 0;
+      // Back-compat: if caller sends no pagination params, return an array.
+      // New paginated callers send ?page=... and get an envelope.
+      if (!q.page && !q.pageSize && !q.status && !q.payment_status && !q.fulfillment_status && !q.q) {
+        return rows;
+      }
+      return {
+        rows,
+        total,
+        page,
+        pageSize,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      };
+    });
 
     inner.patch("/orders/:id", async (req, reply) => {
     const id = (req.params as { id: string }).id;
@@ -686,6 +756,158 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     }));
   });
 
+    // ---- Shiprocket endpoints ----
+
+    inner.post("/orders/:id/create-shipment", async (req, reply) => {
+      try {
+        const id = (req.params as { id: string }).id;
+        const orderRows = await db.select().from(t.orders).where(eq(t.orders.id, id)).limit(1);
+        if (!orderRows.length) return reply.status(404).send({ error: "Order not found" });
+        const order = orderRows[0];
+        if (order.shiprocketOrderId) return reply.status(409).send({ error: "Shipment already created on Shiprocket" });
+
+        const items = await db.select().from(t.orderItems).where(eq(t.orderItems.orderId, id));
+        const addr = (order.shippingAddress || {}) as Record<string, string>;
+
+        const srItems = items.map((i) => ({
+          name: i.productName,
+          sku: i.sku || i.id,
+          units: i.quantity,
+          selling_price: Number(i.unitPrice ?? 0),
+        }));
+
+        const result = await createSROrder(
+          order.orderNumber,
+          order.createdAt || new Date().toISOString(),
+          addr,
+          srItems,
+          order.paymentMethod || "cod",
+          Number(order.subtotal ?? 0),
+          Number(order.shippingAmount ?? 0),
+          Number(order.discountAmount ?? 0)
+        );
+
+        const now = new Date().toISOString();
+        await db.update(t.orders).set({
+          shiprocketOrderId: String(result.sr_order_id),
+          shiprocketShipmentId: String(result.shipment_id),
+          shiprocketStatus: result.status || "New",
+          shiprocketAwb: result.awb_code || null,
+          shiprocketCourierName: result.courier_name || null,
+          shiprocketCourierId: result.courier_company_id || null,
+          status: "confirmed",
+          updatedAt: now,
+        }).where(eq(t.orders.id, id));
+
+        return { ok: true, sr_order_id: result.sr_order_id, shipment_id: result.shipment_id };
+      } catch (e) {
+        return sendError(reply, e);
+      }
+    });
+
+    inner.get("/orders/:id/couriers", async (req, reply) => {
+      try {
+        const id = (req.params as { id: string }).id;
+        const rows = await db.select().from(t.orders).where(eq(t.orders.id, id)).limit(1);
+        if (!rows.length) return reply.status(404).send({ error: "Order not found" });
+        const order = rows[0];
+        const addr = (order.shippingAddress || {}) as Record<string, string>;
+        const pincode = addr.pincode || "";
+        const isCod = order.paymentMethod === "cod";
+        const weight = parseFloat(process.env.SHIPROCKET_DEFAULT_WEIGHT || "0.5");
+        const couriers = await getSRCouriers(pincode, weight, isCod);
+        return couriers;
+      } catch (e) {
+        return sendError(reply, e);
+      }
+    });
+
+    inner.post("/orders/:id/assign-awb", async (req, reply) => {
+      try {
+        const id = (req.params as { id: string }).id;
+        const body = req.body as { courier_id: number };
+        const rows = await db.select().from(t.orders).where(eq(t.orders.id, id)).limit(1);
+        if (!rows.length) return reply.status(404).send({ error: "Order not found" });
+        const order = rows[0];
+        if (!order.shiprocketShipmentId) return reply.status(400).send({ error: "Create shipment first" });
+        if (order.shiprocketAwb) return reply.status(409).send({ error: "AWB already assigned" });
+
+        const { awb, courier_name } = await assignAWB(
+          parseInt(order.shiprocketShipmentId),
+          body.courier_id
+        );
+        const now = new Date().toISOString();
+        await db.update(t.orders).set({
+          shiprocketAwb: awb,
+          shiprocketCourierName: courier_name,
+          shiprocketCourierId: body.courier_id,
+          trackingNumber: awb,
+          fulfillmentStatus: "fulfilled",
+          status: "shipped",
+          updatedAt: now,
+        }).where(eq(t.orders.id, id));
+
+        return { ok: true, awb, courier_name };
+      } catch (e) {
+        return sendError(reply, e);
+      }
+    });
+
+    inner.post("/orders/:id/generate-label", async (req, reply) => {
+      try {
+        const id = (req.params as { id: string }).id;
+        const rows = await db.select().from(t.orders).where(eq(t.orders.id, id)).limit(1);
+        if (!rows.length) return reply.status(404).send({ error: "Order not found" });
+        const order = rows[0];
+        if (!order.shiprocketShipmentId) return reply.status(400).send({ error: "Create shipment first" });
+
+        const labelUrl = await generateLabel(parseInt(order.shiprocketShipmentId));
+        await db.update(t.orders).set({
+          shiprocketLabelUrl: labelUrl,
+          updatedAt: new Date().toISOString(),
+        }).where(eq(t.orders.id, id));
+
+        return { ok: true, label_url: labelUrl };
+      } catch (e) {
+        return sendError(reply, e);
+      }
+    });
+
+    inner.get("/orders/:id/sync-tracking", async (req, reply) => {
+      try {
+        const id = (req.params as { id: string }).id;
+        const rows = await db.select().from(t.orders).where(eq(t.orders.id, id)).limit(1);
+        if (!rows.length) return reply.status(404).send({ error: "Order not found" });
+        const order = rows[0];
+        if (!order.shiprocketAwb) return reply.status(400).send({ error: "No AWB assigned yet" });
+
+        const tracking = await trackByAWB(order.shiprocketAwb);
+        const now = new Date().toISOString();
+
+        const existing = (order.shiprocketTrackingEvents as unknown[] | null) ?? [];
+        const existingKeys = new Set(
+          (existing as Array<Record<string, unknown>>).map((e) => `${e.date}|${e.activity}`)
+        );
+        const newEvents = tracking.tracking_events.filter(
+          (a) => !existingKeys.has(`${a.date}|${a.activity}`)
+        );
+        const merged = [...(existing as Array<Record<string, unknown>>), ...newEvents];
+
+        await db.update(t.orders).set({
+          shiprocketStatus: tracking.current_status,
+          shiprocketTrackingEvents: merged as object,
+          shiprocketLastSynced: now,
+          updatedAt: now,
+        }).where(eq(t.orders.id, id));
+
+        return { ok: true, ...tracking, tracking_events: merged };
+      } catch (e) {
+        return sendError(reply, e);
+      }
+    });
+
+    // ---- End Shiprocket endpoints ----
+
     inner.get("/tag-preview", async (req) => {
       const tags = String((req.query as { tags?: string }).tags || "")
         .split(",")
@@ -731,6 +953,17 @@ function firestoreOrderShape(order: typeof t.orders.$inferSelect) {
     fulfillment_status: order.fulfillmentStatus,
     tracking_number: order.trackingNumber,
     tracking_url: order.trackingUrl,
+    // Shiprocket fields
+    shiprocket_order_id: order.shiprocketOrderId,
+    shiprocket_shipment_id: order.shiprocketShipmentId,
+    shiprocket_awb: order.shiprocketAwb,
+    shiprocket_courier_name: order.shiprocketCourierName,
+    shiprocket_courier_id: order.shiprocketCourierId,
+    shiprocket_status: order.shiprocketStatus,
+    shiprocket_label_url: order.shiprocketLabelUrl,
+    shiprocket_tracking_events: order.shiprocketTrackingEvents,
+    shiprocket_last_synced: order.shiprocketLastSynced,
+    razorpay_payment_id: order.razorpayPaymentId || null,
     created_at: order.createdAt,
     updated_at: order.updatedAt,
   };

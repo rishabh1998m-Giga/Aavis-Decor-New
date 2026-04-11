@@ -16,8 +16,10 @@ const StoreLayout = ({ children }: StoreLayoutProps) => {
 
     const update = () => {
       const h = el.getBoundingClientRect().height;
-      // Avoid negative / NaN values.
-      setHeaderHeight(Number.isFinite(h) && h > 0 ? h : 0);
+      const safe = Number.isFinite(h) && h > 0 ? h : 0;
+      setHeaderHeight(safe);
+      // Expose as CSS var so sticky elements can offset without hardcoding.
+      document.documentElement.style.setProperty("--header-h", `${safe}px`);
     };
 
     update();

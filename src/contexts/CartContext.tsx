@@ -17,6 +17,8 @@ export interface CartItem {
   /** GST % embedded in inclusive line price; default 18 for legacy stored carts. */
   gstRate: number;
   customCurtainSize?: string;
+  /** Overridden price from curtain size rate table (replaces variant base price). */
+  customCurtainPrice?: number;
 }
 
 export type CartItemInput = Omit<CartItem, "quantity" | "lineId"> & { lineId?: string };
@@ -50,6 +52,10 @@ function normalizeStoredCartItem(raw: Record<string, unknown>): CartItem | null 
     maxStock: Math.max(0, Number(raw.maxStock) ?? 0),
     gstRate,
     customCurtainSize: custom || undefined,
+    customCurtainPrice:
+      raw.customCurtainPrice != null && Number.isFinite(Number(raw.customCurtainPrice))
+        ? Number(raw.customCurtainPrice)
+        : undefined,
   };
 }
 
@@ -101,11 +107,18 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     const custom = item.customCurtainSize?.trim().slice(0, 200);
     const lineId = item.lineId ?? buildCartLineId(item.variantId, custom);
     const gstRate = typeof item.gstRate === "number" && Number.isFinite(item.gstRate) ? item.gstRate : 18;
+    // Use curtain price override if provided, otherwise use the variant price
+    const effectivePrice =
+      item.customCurtainPrice != null && item.customCurtainPrice > 0
+        ? item.customCurtainPrice
+        : item.price;
     const payload: Omit<CartItem, "quantity"> = {
       ...item,
+      price: effectivePrice,
       lineId,
       gstRate,
       customCurtainSize: custom || undefined,
+      customCurtainPrice: item.customCurtainPrice,
     };
 
     setItems((prev) => {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
+import { getCurtainType, lookupCurtainPrice, parseSizeFt } from "@/lib/curtainPricing";
 import StoreLayout from "@/components/layout/StoreLayout";
 import ImageGallery from "@/components/products/ImageGallery";
 import VariantSelector from "@/components/products/VariantSelector";
@@ -32,6 +33,7 @@ const Product = () => {
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [customCurtainSize, setCustomCurtainSize] = useState("");
+  const [derivedCurtainPrice, setDerivedCurtainPrice] = useState<{ price: number; exactMatch: boolean } | null>(null);
 
   const isCurtainProduct = product?.category?.slug === "curtains";
 
@@ -47,7 +49,28 @@ const Product = () => {
 
   useEffect(() => {
     setCustomCurtainSize("");
+    setDerivedCurtainPrice(null);
   }, [product?.id]);
+
+  // Derive curtain price from custom size input
+  useEffect(() => {
+    if (!isCurtainProduct || !product) {
+      setDerivedCurtainPrice(null);
+      return;
+    }
+    const sizeFt = parseSizeFt(customCurtainSize);
+    if (sizeFt === null) {
+      setDerivedCurtainPrice(null);
+      return;
+    }
+    const type = getCurtainType({ name: product.name, tags: product.tags });
+    if (!type) {
+      setDerivedCurtainPrice(null);
+      return;
+    }
+    const result = lookupCurtainPrice(sizeFt, type);
+    setDerivedCurtainPrice(result);
+  }, [customCurtainSize, isCurtainProduct, product]);
 
   const displayedImages = useMemo(() => {
     if (!product?.images.length) return [];
@@ -76,6 +99,7 @@ const Product = () => {
       maxStock: selectedVariant.stockQuantity,
       gstRate: product.gstRate,
       customCurtainSize: custom || undefined,
+      customCurtainPrice: derivedCurtainPrice?.price,
     }, quantity);
     toast({ title: "Added to bag", description: `${product.name} has been added to your shopping bag.` });
   };
@@ -203,8 +227,8 @@ const Product = () => {
 
               <div className="mb-6">
                 <PriceDisplay
-                  price={selectedVariant?.price || product.basePrice}
-                  compareAtPrice={selectedVariant?.compareAtPrice || product.compareAtPrice}
+                  price={derivedCurtainPrice?.price ?? (selectedVariant?.price || product.basePrice)}
+                  compareAtPrice={derivedCurtainPrice ? undefined : (selectedVariant?.compareAtPrice || product.compareAtPrice)}
                   gstRate={product.gstRate}
                   showGSTBreakdown
                   size="lg"
@@ -227,16 +251,25 @@ const Product = () => {
                     CUSTOM SIZE (OPTIONAL)
                   </label>
                   <p className="text-xs text-foreground/50 -mt-1">
-                    Add your width/drop after choosing a preset size above (e.g. Window – 5 Feet).
+                    Enter your drop length to get the exact price for your size.
                   </p>
                   <Input
                     id="custom-curtain-size"
                     value={customCurtainSize}
                     onChange={(e) => setCustomCurtainSize(e.target.value)}
-                    placeholder="e.g. 5.5 ft, 6 ft, 6.5 ft"
+                    placeholder="e.g. 5.5 ft, 6 ft, 7.5 ft"
                     className="h-11"
                     maxLength={200}
                   />
+                  {derivedCurtainPrice && (
+                    <p className="text-sm font-medium text-amber-800/90 dark:text-amber-300">
+                      Price for {customCurtainSize.trim()}:{" "}
+                      ₹{derivedCurtainPrice.price.toLocaleString("en-IN")}
+                      {!derivedCurtainPrice.exactMatch && (
+                        <span className="text-xs font-normal text-foreground/50 ml-1">(nearest tier)</span>
+                      )}
+                    </p>
+                  )}
                   <p className="text-xs text-amber-800/90 dark:text-amber-200/90 leading-relaxed font-medium">
                     Custom-sized curtains are not returnable.
                   </p>
@@ -331,6 +364,51 @@ const Product = () => {
                     )}
                   </AccordionContent>
                 </AccordionItem>
+
+                {isCurtainProduct && (
+                  <AccordionItem value="price-guide">
+                    <AccordionTrigger className="text-xs tracking-widest hover:no-underline">SIZE PRICE GUIDE</AccordionTrigger>
+                    <AccordionContent>
+                      <p className="text-xs text-foreground/50 mb-3">Prices per panel (pair of 2 panels). GST included.</p>
+                      <div className="overflow-x-auto -mx-1">
+                        <table className="w-full text-sm border-collapse min-w-[280px]">
+                          <thead>
+                            <tr className="border-b border-border/30">
+                              <th className="text-left py-2 pr-4 text-xs tracking-widest text-foreground/50 font-normal">SIZE</th>
+                              <th className="text-right py-2 px-3 text-xs tracking-widest text-foreground/50 font-normal">BLACKOUT</th>
+                              <th className="text-right py-2 pl-3 text-xs tracking-widest text-foreground/50 font-normal">EMBROIDERY</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {[
+                              { size: "5 ft",   blackout: 1649,  embroidery: 2349 },
+                              { size: "5.5 ft", blackout: 1799,  embroidery: 2549 },
+                              { size: "6 ft",   blackout: 1899,  embroidery: 2749 },
+                              { size: "6.5 ft", blackout: 1999,  embroidery: 2849 },
+                              { size: "7 ft",   blackout: 2059,  embroidery: 2949 },
+                              { size: "7.5 ft", blackout: 2200,  embroidery: 3199 },
+                              { size: "8 ft",   blackout: 2300,  embroidery: 3349 },
+                              { size: "8.5 ft", blackout: 2400,  embroidery: 3499 },
+                              { size: "9 ft",   blackout: 2499,  embroidery: 3599 },
+                              { size: "9.5 ft", blackout: 2599,  embroidery: 3749 },
+                              { size: "10 ft",  blackout: 2669,  embroidery: 3859 },
+                              { size: "10.5 ft",blackout: 2779,  embroidery: 4000 },
+                              { size: "11 ft",  blackout: 2859,  embroidery: 4159 },
+                              { size: "11.5 ft",blackout: 2999,  embroidery: 4349 },
+                              { size: "12 ft",  blackout: 3099,  embroidery: 4549 },
+                            ].map((row) => (
+                              <tr key={row.size} className="border-b border-border/20 hover:bg-muted/30 transition-colors">
+                                <td className="py-2 pr-4 text-foreground/80">{row.size}</td>
+                                <td className="py-2 px-3 text-right text-foreground">₹{row.blackout.toLocaleString("en-IN")}</td>
+                                <td className="py-2 pl-3 text-right text-foreground">₹{row.embroidery.toLocaleString("en-IN")}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
               </Accordion>
             </div>
           </div>

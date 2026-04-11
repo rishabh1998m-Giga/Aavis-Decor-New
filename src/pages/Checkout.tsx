@@ -4,8 +4,9 @@ import StoreLayout from "@/components/layout/StoreLayout";
 import PageMeta from "@/components/seo/PageMeta";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiJson, ApiRequestError } from "@/lib/api";
+import { apiJson, friendlyError } from "@/lib/api";
 import { formatPrice } from "@/lib/formatters";
+import { openRazorpay } from "@/lib/razorpay";
 import { addressSchema, type AddressFormValues, indianStates } from "@/lib/validators";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -19,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { ChevronRight, Loader2, CreditCard, Banknote, CheckCircle, Tag, X } from "lucide-react";
+import { ChevronRight, Loader2, CreditCard, Banknote, CheckCircle, Tag, X, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +35,7 @@ const Checkout = () => {
   const [paymentMethod, setPaymentMethod] = useState("cod");
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [addressData, setAddressData] = useState<AddressFormValues | null>(null);
+  const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false);
 
   const [discountCode, setDiscountCode] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<{
@@ -84,8 +86,8 @@ const Checkout = () => {
         value: data.value,
       });
       toast({ title: "Discount applied!", description: `You save ${formatPrice(data.discountAmount)}` });
-    } catch {
-      setDiscountError("Failed to validate code");
+    } catch (e) {
+      setDiscountError(friendlyError(e, "Failed to validate code"));
     } finally {
       setDiscountLoading(false);
     }
@@ -114,52 +116,112 @@ const Checkout = () => {
     }
     setIsPlacingOrder(true);
 
+    const shippingAddress = {
+      full_name: addressData.fullName,
+      phone: addressData.phone,
+      address_line1: addressData.addressLine1,
+      address_line2: addressData.addressLine2 || "",
+      city: addressData.city,
+      state: addressData.state,
+      pincode: addressData.pincode,
+    };
+
+    const cartItems = items.map((i) => ({
+      variantId: i.variantId,
+      productId: i.productId,
+      quantity: i.quantity,
+      ...(i.customCurtainSize?.trim()
+        ? { customCurtainSize: i.customCurtainSize.trim().slice(0, 200) }
+        : {}),
+    }));
+
     try {
-      const shippingAddress = {
-        full_name: addressData.fullName,
-        phone: addressData.phone,
-        address_line1: addressData.addressLine1,
-        address_line2: addressData.addressLine2 || "",
-        city: addressData.city,
-        state: addressData.state,
-        pincode: addressData.pincode,
-      };
+      if (paymentMethod === "upi") {
+        const rzpOrder = await apiJson<{
+          razorpay_order_id: string;
+          amount_paise: number;
+          currency: string;
+          key_id: string;
+          db_order_id: string;
+          order_number: string;
+        }>("/api/checkout/razorpay/create-order", {
+          method: "POST",
+          body: JSON.stringify({
+            items: cartItems,
+            shippingAddress,
+            discountCode: appliedDiscount?.code || undefined,
+          }),
+        });
 
-      const data = await apiJson<{
-        orderId: string;
-        orderNumber: string;
-        totalAmount: number;
-        discountAmount: number;
-      }>("/api/checkout/orders", {
-        method: "POST",
-        body: JSON.stringify({
-          items: items.map((i) => ({
-            variantId: i.variantId,
-            productId: i.productId,
-            quantity: i.quantity,
-            ...(i.customCurtainSize?.trim()
-              ? { customCurtainSize: i.customCurtainSize.trim().slice(0, 200) }
-              : {}),
-          })),
-          shippingAddress,
-          paymentMethod,
-          discountCode: appliedDiscount?.code || undefined,
-        }),
-      });
+        let payment;
+        try {
+          payment = await openRazorpay({
+            key: rzpOrder.key_id,
+            amount: rzpOrder.amount_paise,
+            currency: rzpOrder.currency,
+            name: "Aavis Decor",
+            description: `Order ${rzpOrder.order_number}`,
+            order_id: rzpOrder.razorpay_order_id,
+            prefill: {
+              name: addressData.fullName,
+              contact: addressData.phone,
+            },
+            theme: { color: "#1a1a1a" },
+          });
+        } catch (modalErr) {
+          // User dismissed / payment failed — order stays in pending_payment
+          // state on the server and can be retried or cancelled by admin.
+          if (modalErr instanceof Error && modalErr.message === "Payment cancelled") {
+            toast({ title: "Payment cancelled", description: "Your order was not placed." });
+            return;
+          }
+          throw modalErr;
+        }
 
-      clearCart();
-      toast({ title: "Order placed successfully!", description: `Order #${data.orderNumber}` });
-      navigate(`/order-confirmation/${data.orderNumber}`);
+        const data = await apiJson<{
+          orderId: string;
+          orderNumber: string;
+          totalAmount: number;
+        }>("/api/checkout/razorpay/verify", {
+          method: "POST",
+          body: JSON.stringify({
+            razorpay_payment_id: payment.razorpay_payment_id,
+            razorpay_order_id: payment.razorpay_order_id,
+            razorpay_signature: payment.razorpay_signature,
+          }),
+        });
+
+        clearCart();
+        toast({ title: "Payment successful!", description: `Order #${data.orderNumber}` });
+        navigate(`/order-confirmation/${data.orderNumber}`);
+      } else {
+        const data = await apiJson<{
+          orderId: string;
+          orderNumber: string;
+          totalAmount: number;
+          discountAmount: number;
+        }>("/api/checkout/orders", {
+          method: "POST",
+          body: JSON.stringify({
+            items: cartItems,
+            shippingAddress,
+            paymentMethod,
+            discountCode: appliedDiscount?.code || undefined,
+          }),
+        });
+
+        clearCart();
+        toast({ title: "Order placed successfully!", description: `Order #${data.orderNumber}` });
+        navigate(`/order-confirmation/${data.orderNumber}`);
+      }
     } catch (error: unknown) {
-      const msg =
-        error instanceof ApiRequestError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : "Please try again";
+      if (error instanceof Error && error.message === "Payment cancelled") {
+        toast({ title: "Payment cancelled", description: "Your order was not placed." });
+        return;
+      }
       toast({
         title: "Failed to place order",
-        description: msg,
+        description: friendlyError(error),
         variant: "destructive",
       });
     } finally {
@@ -184,23 +246,85 @@ const Checkout = () => {
     { key: "payment", label: "Payment" },
     { key: "review", label: "Review" },
   ];
+  const currentStepIdx = steps.findIndex((s) => s.key === currentStep);
+
+  const OrderSummary = (
+    <div className="border border-border/30 rounded-md p-6 space-y-4">
+      <h3 className="font-display text-lg">Order Summary</h3>
+      <div className="space-y-2 text-sm">
+        <div className="flex justify-between"><span className="text-foreground/70">Subtotal</span><span>{formatPrice(subtotal)}</span></div>
+        <div className="flex justify-between"><span className="text-foreground/70">Shipping</span><span>{shippingCost === 0 ? <span className="text-green-600">FREE</span> : formatPrice(shippingCost)}</span></div>
+        <div className="flex justify-between"><span className="text-foreground/70">GST (included)</span><span>{formatPrice(gstAmount)}</span></div>
+        {codFee > 0 && <div className="flex justify-between"><span className="text-foreground/70">COD Fee</span><span>{formatPrice(codFee)}</span></div>}
+        {discountAmount > 0 && (
+          <div className="flex justify-between text-green-600">
+            <span>Discount ({appliedDiscount?.code})</span>
+            <span>-{formatPrice(discountAmount)}</span>
+          </div>
+        )}
+      </div>
+      <div className="border-t border-border/30 pt-3">
+        <div className="flex justify-between text-lg font-medium"><span>Total</span><span>{formatPrice(total)}</span></div>
+      </div>
+
+      <div className="border-t border-border/30 pt-4">
+        <h4 className="text-xs tracking-widest text-foreground/70 mb-3">DISCOUNT CODE</h4>
+        {appliedDiscount ? (
+          <div className="flex items-center justify-between bg-green-50 p-3 rounded-md">
+            <div className="flex items-center gap-2">
+              <Tag className="h-4 w-4 text-green-600" aria-hidden />
+              <span className="text-sm font-medium text-green-600">{appliedDiscount.code}</span>
+            </div>
+            <button onClick={removeDiscount} aria-label={`Remove discount code ${appliedDiscount.code}`}>
+              <X className="h-4 w-4 text-foreground/50" aria-hidden />
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <Input
+              value={discountCode}
+              onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
+              placeholder="Enter code"
+              className="h-10 text-sm"
+              aria-label="Discount code"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleApplyDiscount}
+              disabled={discountLoading || !discountCode.trim()}
+              className="h-10 px-4"
+            >
+              {discountLoading ? (
+                <><Loader2 className="h-4 w-4 animate-spin mr-1" aria-hidden /> Checking</>
+              ) : (
+                "Apply"
+              )}
+            </Button>
+          </div>
+        )}
+        {discountError && <p className="text-xs text-red-500 mt-2">{discountError}</p>}
+      </div>
+    </div>
+  );
 
   return (
     <StoreLayout>
       <PageMeta title="Checkout" description="Complete your Aavis Decor order. Secure checkout with COD or UPI." canonical="/checkout" noIndex />
-      {/* Header is fixed; give extra top padding so step labels don't get cut off */}
-      <div className="pb-20">
+      <div className="pb-28 lg:pb-20">
         <div className="container max-w-4xl">
-          <div className="flex items-center justify-center gap-4 mb-10">
+          {/* Desktop step indicator */}
+          <div className="hidden md:flex items-center justify-center gap-4 mb-10">
             {steps.map((step, i) => (
               <div key={step.key} className="flex items-center gap-4">
                 <button
                   onClick={() => {
                     if (step.key === "address") setCurrentStep("address");
                     if (step.key === "payment" && addressData) setCurrentStep("payment");
+                    if (step.key === "review" && addressData) setCurrentStep("review");
                   }}
                   className={cn(
-                    "flex items-center gap-2 text-xs tracking-widest",
+                    "flex items-center gap-2 text-xs tracking-widest focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/60 rounded-sm",
                     currentStep === step.key ? "text-foreground font-medium" : "text-foreground/40"
                   )}
                 >
@@ -212,9 +336,23 @@ const Checkout = () => {
                   </span>
                   {step.label.toUpperCase()}
                 </button>
-                {i < steps.length - 1 && <ChevronRight className="h-4 w-4 text-foreground/20" />}
+                {i < steps.length - 1 && <ChevronRight className="h-4 w-4 text-foreground/20" aria-hidden />}
               </div>
             ))}
+          </div>
+
+          {/* Mobile step indicator */}
+          <div className="md:hidden mb-6">
+            <div className="flex items-center justify-between text-xs tracking-widest text-foreground/70 mb-2">
+              <span>STEP {currentStepIdx + 1} OF {steps.length}</span>
+              <span className="text-foreground font-medium">{steps[currentStepIdx].label.toUpperCase()}</span>
+            </div>
+            <div className="h-1 bg-foreground/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-foreground transition-all"
+                style={{ width: `${((currentStepIdx + 1) / steps.length) * 100}%` }}
+              />
+            </div>
           </div>
 
           <div className="grid lg:grid-cols-5 gap-10">
@@ -232,7 +370,7 @@ const Checkout = () => {
                       <FormField control={form.control} name="fullName" render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-xs tracking-widest text-foreground/70">FULL NAME</FormLabel>
-                          <FormControl><Input className="h-11" {...field} /></FormControl>
+                          <FormControl><Input className="h-11" autoComplete="name" {...field} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )} />
@@ -242,7 +380,7 @@ const Checkout = () => {
                           <FormControl>
                             <div className="relative">
                               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-foreground/50">+91</span>
-                              <Input className="h-11 pl-12" maxLength={10} {...field} />
+                              <Input className="h-11 pl-12" maxLength={10} inputMode="numeric" autoComplete="tel-national" {...field} />
                             </div>
                           </FormControl>
                           <FormMessage />
@@ -251,29 +389,29 @@ const Checkout = () => {
                       <FormField control={form.control} name="addressLine1" render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-xs tracking-widest text-foreground/70">ADDRESS LINE 1</FormLabel>
-                          <FormControl><Input className="h-11" placeholder="House/Flat No., Building" {...field} /></FormControl>
+                          <FormControl><Input className="h-11" placeholder="House/Flat No., Building" autoComplete="address-line1" {...field} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )} />
                       <FormField control={form.control} name="addressLine2" render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-xs tracking-widest text-foreground/70">ADDRESS LINE 2 (OPTIONAL)</FormLabel>
-                          <FormControl><Input className="h-11" placeholder="Street, Landmark" {...field} /></FormControl>
+                          <FormControl><Input className="h-11" placeholder="Street, Landmark" autoComplete="address-line2" {...field} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )} />
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <FormField control={form.control} name="city" render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-xs tracking-widest text-foreground/70">CITY</FormLabel>
-                            <FormControl><Input className="h-11" {...field} /></FormControl>
+                            <FormControl><Input className="h-11" autoComplete="address-level2" {...field} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )} />
                         <FormField control={form.control} name="pincode" render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-xs tracking-widest text-foreground/70">PINCODE</FormLabel>
-                            <FormControl><Input className="h-11" maxLength={6} {...field} /></FormControl>
+                            <FormControl><Input className="h-11" maxLength={6} inputMode="numeric" autoComplete="postal-code" {...field} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )} />
@@ -310,7 +448,7 @@ const Checkout = () => {
                       <RadioGroupItem value="cod" id="cod" />
                       <Label htmlFor="cod" className="cursor-pointer flex-1">
                         <div className="flex items-center gap-3">
-                          <Banknote className="h-5 w-5 text-foreground/60" />
+                          <Banknote className="h-5 w-5 text-foreground/60" aria-hidden />
                           <div>
                             <p className="font-medium text-sm">Cash on Delivery</p>
                             <p className="text-xs text-foreground/50">Pay when your order arrives (+₹49 COD fee)</p>
@@ -322,10 +460,10 @@ const Checkout = () => {
                       <RadioGroupItem value="upi" id="upi" />
                       <Label htmlFor="upi" className="cursor-pointer flex-1">
                         <div className="flex items-center gap-3">
-                          <CreditCard className="h-5 w-5 text-foreground/60" />
+                          <CreditCard className="h-5 w-5 text-foreground/60" aria-hidden />
                           <div>
                             <p className="font-medium text-sm">UPI / Card / Net Banking</p>
-                            <p className="text-xs text-foreground/50">Pay securely via Razorpay (Coming soon)</p>
+                            <p className="text-xs text-foreground/50">Pay securely via Razorpay</p>
                           </div>
                         </div>
                       </Label>
@@ -384,70 +522,60 @@ const Checkout = () => {
                     className="w-full h-12 bg-foreground text-background hover:bg-foreground/90 text-xs tracking-widest"
                   >
                     {isPlacingOrder ? (
-                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> PLACING ORDER...</>
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> {paymentMethod === "upi" ? "OPENING PAYMENT..." : "PLACING ORDER..."}</>
                     ) : (
-                      <><CheckCircle className="mr-2 h-4 w-4" /> PLACE ORDER — {formatPrice(total)}</>
+                      <><CheckCircle className="mr-2 h-4 w-4" aria-hidden /> {paymentMethod === "upi" ? "PAY NOW" : "PLACE ORDER"} — {formatPrice(total)}</>
                     )}
                   </Button>
                 </div>
               )}
             </div>
 
-            <div className="lg:col-span-2">
-              <div className="sticky top-32 border border-border/30 rounded-md p-6 space-y-4">
-                <h3 className="font-display text-lg">Order Summary</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-foreground/70">Subtotal</span><span>{formatPrice(subtotal)}</span></div>
-                  <div className="flex justify-between"><span className="text-foreground/70">Shipping</span><span>{shippingCost === 0 ? <span className="text-green-600">FREE</span> : formatPrice(shippingCost)}</span></div>
-                  <div className="flex justify-between"><span className="text-foreground/70">GST (included)</span><span>{formatPrice(gstAmount)}</span></div>
-                  {codFee > 0 && <div className="flex justify-between"><span className="text-foreground/70">COD Fee</span><span>{formatPrice(codFee)}</span></div>}
-                  {discountAmount > 0 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Discount ({appliedDiscount?.code})</span>
-                      <span>-{formatPrice(discountAmount)}</span>
-                    </div>
-                  )}
-                </div>
-                <div className="border-t border-border/30 pt-3">
-                  <div className="flex justify-between text-lg font-medium"><span>Total</span><span>{formatPrice(total)}</span></div>
-                </div>
-
-                <div className="border-t border-border/30 pt-4">
-                  <h4 className="text-xs tracking-widest text-foreground/70 mb-3">DISCOUNT CODE</h4>
-                  {appliedDiscount ? (
-                    <div className="flex items-center justify-between bg-green-50 dark:bg-green-950/20 p-3 rounded-md">
-                      <div className="flex items-center gap-2">
-                        <Tag className="h-4 w-4 text-green-600" />
-                        <span className="text-sm font-medium text-green-600">{appliedDiscount.code}</span>
-                      </div>
-                      <button onClick={removeDiscount}><X className="h-4 w-4 text-foreground/50" /></button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <Input
-                        value={discountCode}
-                        onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
-                        placeholder="Enter code"
-                        className="h-10 text-sm"
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleApplyDiscount}
-                        disabled={discountLoading || !discountCode.trim()}
-                        className="h-10 px-4"
-                      >
-                        {discountLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
-                      </Button>
-                    </div>
-                  )}
-                  {discountError && <p className="text-xs text-red-500 mt-2">{discountError}</p>}
-                </div>
+            {/* Desktop summary column */}
+            <div className="hidden lg:block lg:col-span-2">
+              <div className="sticky" style={{ top: "calc(var(--header-h, 120px) + 1rem)" }}>
+                {OrderSummary}
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Mobile summary drawer (fixed bottom bar) */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/40 bg-background shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
+        <button
+          onClick={() => setMobileSummaryOpen((v) => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm"
+          aria-expanded={mobileSummaryOpen}
+          aria-label={mobileSummaryOpen ? "Hide order summary" : "Show order summary"}
+        >
+          <div className="flex items-center gap-2">
+            <ChevronUp
+              className={cn("h-4 w-4 transition-transform", mobileSummaryOpen && "rotate-180")}
+              aria-hidden
+            />
+            <span className="text-foreground/70">Order total</span>
+          </div>
+          <span className="font-medium">{formatPrice(total)}</span>
+        </button>
+        {mobileSummaryOpen && (
+          <div className="px-4 pb-4 max-h-[60vh] overflow-y-auto">
+            {OrderSummary}
+          </div>
+        )}
+      </div>
+
+      {/* Full-screen loading overlay during order placement — prevents double-submit */}
+      {isPlacingOrder && (
+        <div className="fixed inset-0 z-[60] bg-background/70 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-background border border-border/50 rounded-md px-6 py-4 shadow-lg flex items-center gap-3">
+            <Loader2 className="h-5 w-5 animate-spin text-foreground" aria-hidden />
+            <p className="text-sm">
+              {paymentMethod === "upi" ? "Connecting to Razorpay…" : "Placing your order…"}
+            </p>
+          </div>
+        </div>
+      )}
     </StoreLayout>
   );
 };

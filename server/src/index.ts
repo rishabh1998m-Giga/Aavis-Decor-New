@@ -14,6 +14,7 @@ import { registerPublicOrderRoutes } from "./routes/publicOrderRoutes.js";
 import { registerAccountRoutes } from "./routes/accountRoutes.js";
 import { registerAdminRoutes } from "./routes/adminRoutes.js";
 import { registerUploadRoutes } from "./routes/uploadRoutes.js";
+import { registerShiprocketWebhookRoutes } from "./routes/shiprocketWebhookRoutes.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -55,8 +56,26 @@ async function main() {
   await registerAccountRoutes(app);
   await registerUploadRoutes(app);
   await registerAdminRoutes(app);
+  await registerShiprocketWebhookRoutes(app);
 
   app.get("/api/health", async () => ({ ok: true }));
+
+  // Integration presence summary — makes misconfigured envs obvious at boot.
+  const rzpKey = process.env.RAZORPAY_KEY_ID || "";
+  const rzpMode = rzpKey.startsWith("rzp_live_")
+    ? "LIVE"
+    : rzpKey.startsWith("rzp_test_")
+    ? "test"
+    : "missing";
+  const srConfigured = Boolean(
+    process.env.SHIPROCKET_EMAIL && process.env.SHIPROCKET_PASSWORD
+  );
+  const srWebhookSigned = Boolean(process.env.SHIPROCKET_WEBHOOK_SECRET);
+  app.log.info(
+    `Integrations — Razorpay: ${rzpMode}  Shiprocket: ${
+      srConfigured ? "configured" : "missing"
+    }  Shiprocket webhook signing: ${srWebhookSigned ? "on" : "off"}`
+  );
 
   const port = Number(process.env.PORT) || 3001;
   const host = process.env.HOST || "0.0.0.0";

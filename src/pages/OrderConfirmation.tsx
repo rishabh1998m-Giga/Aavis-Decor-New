@@ -43,7 +43,13 @@ const OrderConfirmation = () => {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-foreground/60">Payment</span>
-                <span className="capitalize">{order.payment_method === "cod" ? "Cash on Delivery" : String(order.payment_method)}</span>
+                <span className="capitalize">
+                  {order.payment_method === "cod"
+                    ? "Cash on Delivery"
+                    : order.payment_method === "upi"
+                    ? "Paid via UPI / Card"
+                    : String(order.payment_method)}
+                </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-foreground/60">Total</span>

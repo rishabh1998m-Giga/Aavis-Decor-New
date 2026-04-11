@@ -72,15 +72,17 @@ const ImageGallery = ({ images, productName, emptyLabel }: ImageGalleryProps) =>
               key={image.id}
               onClick={() => goTo(index)}
               className={cn(
-                "flex-shrink-0 w-16 h-20 lg:w-20 lg:h-24 overflow-hidden border-2 transition-colors",
+                "flex-shrink-0 w-16 h-20 lg:w-20 lg:h-24 overflow-hidden border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/60",
                 index === currentIndex
                   ? "border-foreground"
                   : "border-transparent hover:border-foreground/30"
               )}
+              aria-label={`View image ${index + 1} of ${sortedImages.length}`}
+              aria-current={index === currentIndex ? "true" : undefined}
             >
               <img
                 src={image.url}
-                alt={image.altText || `${productName} ${index + 1}`}
+                alt={image.altText || `${productName} — view ${index + 1}`}
                 className="w-full h-full object-contain"
                 loading="lazy"
               />
@@ -148,24 +150,26 @@ const ImageGallery = ({ images, productName, emptyLabel }: ImageGalleryProps) =>
             <button
               onClick={goPrev}
               disabled={currentIndex === 0}
+              aria-label="Previous image"
               className={cn(
-                "absolute left-4 top-1/2 -translate-y-1/2 bg-background/80 p-2 transition-opacity",
+                "absolute left-4 top-1/2 -translate-y-1/2 bg-background/80 p-2 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/60 rounded-sm",
                 currentIndex === 0 ? "opacity-30 cursor-not-allowed" : "hover:bg-background"
               )}
             >
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronLeft className="h-5 w-5" aria-hidden />
             </button>
             <button
               onClick={goNext}
               disabled={currentIndex === sortedImages.length - 1}
+              aria-label="Next image"
               className={cn(
-                "absolute right-4 top-1/2 -translate-y-1/2 bg-background/80 p-2 transition-opacity",
+                "absolute right-4 top-1/2 -translate-y-1/2 bg-background/80 p-2 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/60 rounded-sm",
                 currentIndex === sortedImages.length - 1
                   ? "opacity-30 cursor-not-allowed"
                   : "hover:bg-background"
               )}
             >
-              <ChevronRight className="h-5 w-5" />
+              <ChevronRight className="h-5 w-5" aria-hidden />
             </button>
           </>
         )}
@@ -177,8 +181,10 @@ const ImageGallery = ({ images, productName, emptyLabel }: ImageGalleryProps) =>
               <button
                 key={index}
                 onClick={() => goTo(index)}
+                aria-label={`Go to image ${index + 1}`}
+                aria-current={index === currentIndex ? "true" : undefined}
                 className={cn(
-                  "w-2 h-2 rounded-full transition-colors",
+                  "w-2 h-2 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/60",
                   index === currentIndex ? "bg-foreground" : "bg-foreground/30"
                 )}
               />

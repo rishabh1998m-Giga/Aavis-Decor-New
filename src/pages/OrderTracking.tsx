@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Package, CheckCircle, Truck, Home, ExternalLink, Search, Clock,
+  Package, CheckCircle, Truck, Home, ExternalLink, Search, Clock, MapPin,
 } from "lucide-react";
 
 const statusSteps = [
@@ -93,13 +93,16 @@ const OrderTracking = () => {
                 </div>
               </div>
 
-              <div className="border border-border/30 rounded-md p-6">
+              <div className="border border-border/30 rounded-md p-4 sm:p-6">
                 <h3 className="text-xs tracking-widest text-foreground/70 mb-6">ORDER STATUS</h3>
                 <div className="flex items-center justify-between relative">
-                  <div className="absolute top-4 left-6 right-6 h-0.5 bg-border/40" />
+                  <div className="absolute top-4 left-4 right-4 h-0.5 bg-border/40" />
                   <div
-                    className="absolute top-4 left-6 h-0.5 bg-foreground transition-all duration-500"
-                    style={{ width: `calc(${(currentStepIndex / (statusSteps.length - 1)) * 100}% - 48px)` }}
+                    className="absolute top-4 left-4 h-0.5 bg-foreground transition-all duration-500"
+                    style={(() => {
+                      const p = currentStepIndex / (statusSteps.length - 1);
+                      return { width: `calc(${p * 100}% - ${p * 32}px)` };
+                    })()}
                   />
                   {statusSteps.map((step, i) => {
                     const isActive = i <= currentStepIndex;
@@ -175,6 +178,58 @@ const OrderTracking = () => {
                   <span>Total</span><span>{formatPrice(Number(order.total_amount))}</span>
                 </div>
               </div>
+
+              {/* Shiprocket live tracking */}
+              {(order.shiprocket_awb || order.shiprocket_tracking_events) && (
+                <div className="border border-border/30 rounded-md p-5">
+                  <h3 className="text-xs tracking-widest text-foreground/70 mb-1">SHIPMENT DETAILS</h3>
+                  {order.shiprocket_courier_name && (
+                    <p className="text-xs text-foreground/50 mb-3">
+                      Courier: <span className="text-foreground">{String(order.shiprocket_courier_name)}</span>
+                    </p>
+                  )}
+                  {order.shiprocket_awb && (
+                    <p className="text-xs text-foreground/50 mb-3">
+                      AWB: <span className="font-mono text-foreground">{String(order.shiprocket_awb)}</span>
+                    </p>
+                  )}
+                  {order.shiprocket_status && (
+                    <Badge variant="secondary" className="capitalize mb-4">{String(order.shiprocket_status)}</Badge>
+                  )}
+                  {order.shiprocket_last_synced && (
+                    <p className="text-xs text-foreground/30 mb-4">
+                      Last updated: {formatDate(String(order.shiprocket_last_synced))}
+                    </p>
+                  )}
+
+                  {/* Tracking events timeline */}
+                  {Array.isArray(order.shiprocket_tracking_events) &&
+                    (order.shiprocket_tracking_events as Array<Record<string, string>>).length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-xs tracking-widest text-foreground/50 mb-3">TRACKING HISTORY</p>
+                        <div className="relative pl-4">
+                          <div className="absolute left-1.5 top-2 bottom-2 w-px bg-border/30" />
+                          {[...(order.shiprocket_tracking_events as Array<Record<string, string>>)]
+                            .reverse()
+                            .map((ev, i) => (
+                              <div key={i} className="relative mb-4 pl-4">
+                                <div className="absolute -left-[1px] top-1.5 w-2 h-2 rounded-full bg-foreground/20 border border-border" />
+                                <p className="text-sm font-medium text-foreground">
+                                  {ev.activity || ev["sr-status-label"] || "Update"}
+                                </p>
+                                {ev.location && (
+                                  <p className="text-xs text-foreground/50 flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" /> {ev.location}
+                                  </p>
+                                )}
+                                <p className="text-xs text-foreground/40 mt-0.5">{ev.date}</p>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                </div>
+              )}
 
               <div className="text-center">
                 <Button variant="outline" asChild>

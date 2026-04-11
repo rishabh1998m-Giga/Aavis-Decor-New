@@ -60,17 +60,19 @@ const Cart = () => {
               {items.map((item) => (
                 <div
                   key={item.lineId}
-                  className="flex gap-6 p-4 border border-border/30 rounded-md"
+                  className="flex gap-4 sm:gap-6 p-4 border border-border/30 rounded-md"
                 >
                   {/* Image */}
                   <Link
                     to={`/product/${item.productSlug ?? item.productId}`}
-                    className="w-28 h-36 flex-shrink-0 bg-muted overflow-hidden"
+                    className="w-20 h-28 sm:w-28 sm:h-36 flex-shrink-0 bg-muted overflow-hidden"
+                    aria-label={`View ${item.name}`}
                   >
                     <img
                       src={item.imageUrl}
                       alt={item.name}
                       className="w-full h-full object-cover"
+                      loading="lazy"
                     />
                   </Link>
 
@@ -93,9 +95,10 @@ const Cart = () => {
                       </div>
                       <button
                         onClick={() => removeItem(item.lineId)}
-                        className="text-foreground/40 hover:text-foreground p-2 self-start"
+                        className="text-foreground/40 hover:text-foreground p-2 self-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/60 rounded-sm"
+                        aria-label={`Remove ${item.name} from bag`}
                       >
-                        <X className="h-5 w-5" />
+                        <X className="h-5 w-5" aria-hidden />
                       </button>
                     </div>
 
@@ -106,21 +109,24 @@ const Cart = () => {
                           onClick={() =>
                             updateQuantity(item.lineId, item.quantity - 1)
                           }
-                          className="p-2 hover:bg-muted transition-colors"
+                          className="p-2 hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          disabled={item.quantity <= 1}
+                          aria-label={`Decrease quantity of ${item.name}`}
                         >
-                          <Minus className="h-4 w-4" />
+                          <Minus className="h-4 w-4" aria-hidden />
                         </button>
-                        <span className="w-12 text-center text-sm">
+                        <span className="w-12 text-center text-sm" aria-live="polite" aria-label={`Quantity: ${item.quantity}`}>
                           {item.quantity}
                         </span>
                         <button
                           onClick={() =>
                             updateQuantity(item.lineId, item.quantity + 1)
                           }
-                          className="p-2 hover:bg-muted transition-colors"
+                          className="p-2 hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           disabled={item.quantity >= item.maxStock}
+                          aria-label={`Increase quantity of ${item.name}`}
                         >
-                          <Plus className="h-4 w-4" />
+                          <Plus className="h-4 w-4" aria-hidden />
                         </button>
                       </div>
 
@@ -143,7 +149,10 @@ const Cart = () => {
 
             {/* Order Summary */}
             <div className="lg:col-span-1">
-              <div className="sticky top-32 border border-border/30 rounded-md p-6 space-y-6">
+              <div
+                className="sticky border border-border/30 rounded-md p-6 space-y-6"
+                style={{ top: "calc(var(--header-h, 120px) + 1rem)" }}
+              >
                 <h2 className="font-display text-lg">Order Summary</h2>
 
                 <div className="space-y-3 text-sm">

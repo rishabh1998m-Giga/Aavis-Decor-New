@@ -89,3 +89,32 @@ export function isApiConfigured(): boolean {
 export function apiConfigMessage(): string | null {
   return null;
 }
+
+/**
+ * Convert raw API errors into customer-facing copy.
+ * Server error strings are often developer-oriented ("Validation failed: pincode invalid");
+ * this maps known patterns to softer messages. Unknown errors pass through unchanged.
+ */
+export function friendlyError(err: unknown, fallback = "Something went wrong. Please try again."): string {
+  const raw = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+  if (!raw) return fallback;
+  const lower = raw.toLowerCase();
+
+  if (lower.includes("insufficient stock")) return "One of your items just sold out. Please refresh your cart.";
+  if (lower.includes("payment cancelled")) return "Payment was cancelled. Your order was not placed.";
+  if (lower.includes("payment verification failed") || lower.includes("invalid razorpay")) {
+    return "We couldn't verify your payment. If money was deducted it will be refunded in 5–7 days. Please try again.";
+  }
+  if (lower.includes("cart is empty")) return "Your cart is empty.";
+  if (lower.includes("sign in") || lower.includes("unauthorized")) return "Please sign in to continue.";
+  if (lower.includes("don't ship to this pincode") || lower.includes("not shippable")) return raw;
+  if (lower.includes("cash on delivery is not available")) return raw;
+  if (lower.includes("valid 6-digit pincode")) return raw;
+  if (lower.includes("variant") && lower.includes("not found")) return "One of your items is no longer available. Please refresh your cart.";
+  if (lower.includes("coupon") || lower.includes("discount")) return raw;
+  if (lower.includes("network") || lower.includes("failed to fetch")) return "Network error. Please check your connection and try again.";
+
+  // Pass-through if the message is already short and customer-readable.
+  if (raw.length < 120 && !raw.includes(":")) return raw;
+  return fallback;
+}

@@ -4,6 +4,7 @@ import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as schema from "../db/schema.js";
 import { ApiError } from "../lib/errors.js";
 import { resolveGstRate, sanitizeCustomCurtainSize } from "../lib/gst.js";
+import { resolveCurtainPrice } from "../lib/curtainPricing.js";
 
 type Db = PostgresJsDatabase<typeof schema>;
 
@@ -70,6 +71,8 @@ export async function createOrderService(
     shippingAddress: Record<string, unknown>;
     paymentMethod: string;
     discountCode?: string;
+    paymentStatus?: string;
+    razorpayOrderId?: string;
   }
 ) {
   const { items, shippingAddress, paymentMethod, discountCode } = body;
@@ -158,8 +161,16 @@ export async function createOrderService(
     for (const item of items) {
       const variant = variantMap.get(item.variantId)!;
       const product = productMap.get(variant.productId);
-      const lineTotal =
-        Number(variant.price) * (Number(item.quantity) || 1);
+      const custom = sanitizeCustomCurtainSize(item.customCurtainSize);
+      const qty = Number(item.quantity) || 1;
+
+      // Server-side curtain price override: derive price from rate table if custom size provided
+      const curtainPrice = custom
+        ? resolveCurtainPrice(custom, product?.tags ?? [], product?.name ?? null)
+        : null;
+      const unitPrice = curtainPrice ?? Number(variant.price);
+      const lineTotal = unitPrice * qty;
+
       const gstRate = resolveGstRate(
         product
           ? {
@@ -171,7 +182,7 @@ export async function createOrderService(
       );
       const gstAmount = Math.round((lineTotal * gstRate) / (100 + gstRate));
       subtotal += lineTotal;
-      const custom = sanitizeCustomCurtainSize(item.customCurtainSize);
+
       const baseVariantInfo =
         [variant.color, variant.size].filter(Boolean).join(" / ") || "Default";
       const variantInfo = custom
@@ -183,8 +194,8 @@ export async function createOrderService(
         product_name: product?.name ?? "Unknown",
         variant_info: variantInfo,
         sku: variant.sku,
-        quantity: Number(item.quantity) || 1,
-        unit_price: Number(variant.price),
+        quantity: qty,
+        unit_price: unitPrice,
         total_price: lineTotal,
         gst_rate: gstRate,
         gst_amount: gstAmount,
@@ -268,7 +279,8 @@ export async function createOrderService(
       codFee: String(codFee),
       totalAmount: String(totalAmount),
       paymentMethod: paymentMethod || "cod",
-      paymentStatus: "pending",
+      paymentStatus: body.paymentStatus || "pending",
+      razorpayOrderId: body.razorpayOrderId || null,
       shippingAddress: shippingAddress as object,
       billingAddress: shippingAddress as object,
       fulfillmentStatus: "unfulfilled",

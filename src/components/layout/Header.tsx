@@ -32,8 +32,11 @@ const Header = () => {
         <div className="container flex items-center justify-between h-16 lg:h-20">
           {/* Left: Search */}
           <div className="flex items-center gap-4 w-32">
-            <button className="p-2 hover:opacity-70 transition-opacity" aria-label="Search">
-              <Search className="h-5 w-5 text-foreground" strokeWidth={1.5} />
+            <button
+              className="p-2 hover:opacity-70 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/60 rounded-sm"
+              aria-label="Search"
+            >
+              <Search className="h-5 w-5 text-foreground" strokeWidth={1.5} aria-hidden />
             </button>
           </div>
 
@@ -46,32 +49,36 @@ const Header = () => {
 
           {/* Right: Actions */}
           <div className="flex items-center gap-3 w-32 justify-end">
-            <Link 
-              to={user ? "/account" : "/auth"} 
-              className="p-2 hover:opacity-70 transition-opacity hidden sm:block"
+            <Link
+              to={user ? "/account" : "/auth"}
+              className="p-2 hover:opacity-70 transition-opacity hidden sm:block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/60 rounded-sm"
+              aria-label={user ? "Account" : "Sign in"}
             >
-              <User className="h-5 w-5 text-foreground" strokeWidth={1.5} />
+              <User className="h-5 w-5 text-foreground" strokeWidth={1.5} aria-hidden />
             </Link>
-            <button 
+            <button
               onClick={() => setIsOpen(true)}
-              className="p-2 hover:opacity-70 transition-opacity relative"
+              className="p-2 hover:opacity-70 transition-opacity relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/60 rounded-sm"
+              aria-label={`Shopping bag${itemCount > 0 ? `, ${itemCount} item${itemCount === 1 ? "" : "s"}` : ", empty"}`}
             >
-              <ShoppingBag className="h-5 w-5 text-foreground" strokeWidth={1.5} />
+              <ShoppingBag className="h-5 w-5 text-foreground" strokeWidth={1.5} aria-hidden />
               {itemCount > 0 && (
-                <span className="absolute top-0.5 right-0.5 bg-accent text-accent-foreground text-[9px] font-medium rounded-full h-4 w-4 flex items-center justify-center">
+                <span className="absolute top-0.5 right-0.5 bg-accent text-accent-foreground text-[9px] font-medium rounded-full h-4 w-4 flex items-center justify-center" aria-hidden>
                   {itemCount > 9 ? "9+" : itemCount}
                 </span>
               )}
             </button>
             <button
-              className="p-2 lg:hidden hover:opacity-70 transition-opacity"
+              className="p-2 lg:hidden hover:opacity-70 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/60 rounded-sm"
               onClick={() => setMobileOpen(!mobileOpen)}
-              aria-label="Menu"
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileOpen}
+              aria-controls="mobile-nav"
             >
               {mobileOpen ? (
-                <X className="h-5 w-5 text-foreground" strokeWidth={1.5} />
+                <X className="h-5 w-5 text-foreground" strokeWidth={1.5} aria-hidden />
               ) : (
-                <Menu className="h-5 w-5 text-foreground" strokeWidth={1.5} />
+                <Menu className="h-5 w-5 text-foreground" strokeWidth={1.5} aria-hidden />
               )}
             </button>
           </div>
@@ -91,11 +98,12 @@ const Header = () => {
         </nav>
       </div>
 
-      {/* Mobile Nav */}
+      {/* Mobile Nav — inside header so it sits flush below header content at any height */}
       <div
+        id="mobile-nav"
         className={cn(
-          "lg:hidden fixed inset-x-0 top-[105px] bg-background/98 backdrop-blur-md border-b border-border transition-all duration-300 overflow-hidden",
-          mobileOpen ? "max-h-80 opacity-100" : "max-h-0 opacity-0"
+          "lg:hidden bg-background/98 backdrop-blur-md border-b border-border transition-all duration-300 overflow-hidden",
+          mobileOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
         )}
       >
         <nav className="container py-6 flex flex-col gap-4">

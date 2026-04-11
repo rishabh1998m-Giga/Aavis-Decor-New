@@ -257,12 +257,27 @@ export const orders = pgTable(
     fulfillmentStatus: text("fulfillment_status"),
     trackingNumber: text("tracking_number"),
     trackingUrl: text("tracking_url"),
+    // Shiprocket fields
+    shiprocketOrderId: text("shiprocket_order_id"),
+    shiprocketShipmentId: text("shiprocket_shipment_id"),
+    shiprocketAwb: text("shiprocket_awb"),
+    shiprocketCourierName: text("shiprocket_courier_name"),
+    shiprocketCourierId: integer("shiprocket_courier_id"),
+    shiprocketStatus: text("shiprocket_status"),
+    shiprocketLabelUrl: text("shiprocket_label_url"),
+    shiprocketTrackingEvents: jsonb("shiprocket_tracking_events"),
+    shiprocketLastSynced: text("shiprocket_last_synced"),
+    shiprocketLastError: text("shiprocket_last_error"),
+    shiprocketLastErrorAt: text("shiprocket_last_error_at"),
+    razorpayOrderId: text("razorpay_order_id"),
+    razorpayPaymentId: text("razorpay_payment_id"),
     createdAt: text("created_at"),
     updatedAt: text("updated_at"),
   },
   (t) => [
     index("idx_orders_user").on(t.userId),
     index("idx_orders_number").on(t.orderNumber),
+    index("idx_orders_razorpay_order_id").on(t.razorpayOrderId),
   ]
 );
 
