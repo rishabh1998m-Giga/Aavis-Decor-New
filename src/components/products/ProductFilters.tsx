@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -313,6 +314,7 @@ const ProductFilters = (props: ProductFiltersProps) => {
           </SheetTrigger>
           <SheetContent side="right" className="w-80">
             <SheetHeader>
+              <SheetDescription className="sr-only">Filter and sort products by size, colour, and price.</SheetDescription>
               <SheetTitle className="flex items-center justify-between">
                 <span>Filter & Sort</span>
                 {activeFilterCount > 0 && (

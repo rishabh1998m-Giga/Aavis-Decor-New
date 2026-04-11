@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
@@ -22,6 +23,9 @@ const CartDrawer = () => {
             <ShoppingBag className="h-5 w-5" />
             Shopping Bag ({itemCount})
           </SheetTitle>
+          <SheetDescription className="sr-only">
+            Review items in your bag and proceed to checkout.
+          </SheetDescription>
         </SheetHeader>
 
         {items.length === 0 ? (

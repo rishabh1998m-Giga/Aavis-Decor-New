@@ -14,7 +14,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Sheet, SheetContent, SheetHeader, SheetTitle,
+  Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
@@ -428,6 +428,9 @@ const AdminOrders = () => {
             <>
               <SheetHeader className="mb-6">
                 <SheetTitle className="font-mono text-base">{String(selectedOrder.order_number)}</SheetTitle>
+                <SheetDescription className="sr-only">
+                  Order details and fulfilment actions for {String(selectedOrder.order_number)}.
+                </SheetDescription>
                 <p className="text-xs text-foreground/50">{formatDate(String(selectedOrder.created_at || ""))}</p>
               </SheetHeader>
 
