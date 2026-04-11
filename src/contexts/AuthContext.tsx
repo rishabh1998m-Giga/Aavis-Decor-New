@@ -29,17 +29,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [roleLoading, setRoleLoading] = useState(false);
 
-  const refreshMe = useCallback(async () => {
+  // Returns true when a valid session was found, false otherwise.
+  // Never throws — swallows errors so callers can branch on the boolean.
+  const refreshMe = useCallback(async (): Promise<boolean> => {
     setRoleLoading(true);
     try {
       const data = await apiJson<{ user: { id: string; email: string; role: UserRole; fullName?: string | null } | null }>(
         "/api/auth/me"
       );
-      if (!data.user) {
+      if (!data?.user?.id) {
         setUser(null);
         setSession(null);
         setUserRole(null);
-        return;
+        return false;
       }
       const u: AuthUser = {
         id: data.user.id,
@@ -49,15 +51,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(u);
       setSession({ user: u });
       setUserRole(data.user.role);
+      return true;
     } catch {
       setUser(null);
       setSession(null);
       setUserRole(null);
+      return false;
     } finally {
       setRoleLoading(false);
     }
   }, []);
 
+  // Page-load hydration — runs once on mount.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -74,14 +79,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signUp = async (email: string, password: string, fullName?: string) => {
     try {
-      const resp = await apiJson<{ user: { id: string; email: string; role: UserRole } }>(
+      const resp = await apiJson<{ user?: { id: string; email: string; role: UserRole } | null }>(
         "/api/auth/register",
         { method: "POST", body: JSON.stringify({ email, password, fullName }) }
       );
-      const u: AuthUser = { id: resp.user.id, email: resp.user.email, fullName: fullName ?? null };
-      setUser(u);
-      setSession({ user: u });
-      setUserRole(resp.user.role);
+      if (resp?.user?.id) {
+        // Server returned the user in the register response — use it directly.
+        const u: AuthUser = { id: resp.user.id, email: resp.user.email, fullName: fullName ?? null };
+        setUser(u);
+        setSession({ user: u });
+        setUserRole(resp.user.role);
+        return { error: null };
+      }
+      // Fallback: server didn't include user in body — confirm session via /me.
+      const ok = await refreshMe();
+      if (!ok) return { error: new Error("Account created but session could not be confirmed. Please sign in.") };
       return { error: null };
     } catch (err) {
       return { error: err instanceof Error ? err : new Error(String(err)) };
@@ -90,14 +102,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const resp = await apiJson<{ user: { id: string; email: string; role: UserRole } }>(
+      const resp = await apiJson<{ user?: { id: string; email: string; role: UserRole } | null }>(
         "/api/auth/login",
         { method: "POST", body: JSON.stringify({ email, password }) }
       );
-      const u: AuthUser = { id: resp.user.id, email: resp.user.email, fullName: null };
-      setUser(u);
-      setSession({ user: u });
-      setUserRole(resp.user.role);
+      if (resp?.user?.id) {
+        // Server returned the user in the login response — use it directly.
+        const u: AuthUser = { id: resp.user.id, email: resp.user.email, fullName: null };
+        setUser(u);
+        setSession({ user: u });
+        setUserRole(resp.user.role);
+        return { error: null };
+      }
+      // Fallback: server didn't include user in body — confirm session via /me.
+      const ok = await refreshMe();
+      if (!ok) return { error: new Error("Signed in but session could not be confirmed. Please try again.") };
       return { error: null };
     } catch (err) {
       return { error: err instanceof Error ? err : new Error(String(err)) };
