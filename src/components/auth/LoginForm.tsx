@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -31,7 +30,6 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 const LoginForm = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { signIn } = useAuth();
-  const navigate = useNavigate();
   const { toast } = useToast();
 
   const form = useForm<LoginFormValues>({
@@ -70,7 +68,7 @@ const LoginForm = () => {
       title: "Welcome back!",
       description: "You have successfully logged in.",
     });
-    navigate("/");
+    // Redirect handled by Auth.tsx useEffect — reads ?next= param.
   };
 
   return (
