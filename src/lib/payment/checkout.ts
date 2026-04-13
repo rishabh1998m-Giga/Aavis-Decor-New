@@ -1,77 +1,47 @@
-import { createRazorpayOrder } from './razorpay';
+import { openRazorpay, type RazorpaySuccessPayload } from '@/lib/razorpay';
 
-interface PaymentData {
-  amount: number;
+interface InitiatePaymentParams {
+  amountPaise: number;
   currency: string;
-  name: string;
-  description: string;
-  image?: string;
-  order_id: string;
+  razorpayOrderId: string;
+  razorpayKeyId: string;
+  orderNumber: string;
+  customerName: string;
 }
 
 export async function initiatePayment(
-  amount: number,
-  orderId: string,
-  customerName: string
-): Promise<boolean> {
+  params: InitiatePaymentParams
+): Promise<RazorpaySuccessPayload | null> {
   try {
-    // 1. Create Razorpay order
-    const order = await createRazorpayOrder(amount);
-    
-    // 2. Load Razorpay Checkout
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    document.body.appendChild(script);
-
-    // 3. Configure payment options
-    const options: PaymentData = {
-      key: import.meta.env.VITE_RAZORPAY_KEY_ID!,
-      amount: order.amount,
-      currency: order.currency,
+    const payment = await openRazorpay({
+      key: params.razorpayKeyId,
+      amount: params.amountPaise,
+      currency: params.currency,
       name: 'Aavis Decor',
-      description: `Order #${orderId}`,
-      order_id: order.id,
-      handler: async (response: any) => {
-        // 4. Verify payment signature
-        const verification = await verifyPaymentSignature(
-          response.razorpay_order_id,
-          response.razorpay_payment_id,
-          response.razorpay_signature
-        );
-        
-        if (verification.success) {
-          // Notify backend to process order
-          await fetch('/api/orders/confirm', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              orderId,
-              paymentId: response.razorpay_payment_id,
-              signature: response.razorpay_signature
-            })
-          });
-          return true;
-        }
-        return false;
-      },
+      description: `Order #${params.orderNumber}`,
+      order_id: params.razorpayOrderId,
       prefill: {
-        name: customerName,
-        email: '', // Will be filled by user
-        contact: '' // Will be filled by user
+        name: params.customerName,
       },
       theme: {
-        color: '#6366f1' // Indigo-500
-      }
-    };
+        color: '#6366f1',
+      },
+    });
 
-    // @ts-ignore
-    const rzp = new window.Razorpay(options);
-    rzp.open();
-    
-    return true;
+    const verification = await verifyPaymentSignature(
+      payment.razorpay_order_id,
+      payment.razorpay_payment_id,
+      payment.razorpay_signature
+    );
+
+    if (!verification.success) {
+      return null;
+    }
+
+    return payment;
   } catch (error) {
     console.error('Payment initiation failed:', error);
-    return false;
+    return null;
   }
 }
 

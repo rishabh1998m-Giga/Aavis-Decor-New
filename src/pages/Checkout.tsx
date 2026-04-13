@@ -153,13 +153,16 @@ const Checkout = () => {
           }),
         });
 
-        const paymentSuccess = await initiatePayment(
-          rzpOrder.amount_paise / 100,
-          rzpOrder.order_number,
-          addressData.fullName
-        );
-        
-        if (!paymentSuccess) {
+        const payment = await initiatePayment({
+          amountPaise: rzpOrder.amount_paise,
+          currency: rzpOrder.currency,
+          razorpayOrderId: rzpOrder.razorpay_order_id,
+          razorpayKeyId: rzpOrder.key_id,
+          orderNumber: rzpOrder.order_number,
+          customerName: addressData.fullName,
+        });
+
+        if (!payment) {
           toast({ title: "Payment failed", description: "Please try again." });
           return;
         }
@@ -172,7 +175,7 @@ const Checkout = () => {
           method: "POST",
           body: JSON.stringify({
             orderId: rzpOrder.db_order_id,
-            paymentId: "DUMMY_PAYMENT_ID", // Will be replaced after actual payment
+            paymentId: payment.razorpay_payment_id,
           }),
         });
 
