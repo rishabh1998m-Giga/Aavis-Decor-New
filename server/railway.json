@@ -4,6 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
+    "buildCommand": "npm ci --include=dev && npm run build",
     "startCommand": "node dist/db/migrate.js && node dist/index.js",
     "healthcheckPath": "/api/health",
     "restartPolicyType": "ON_FAILURE",
