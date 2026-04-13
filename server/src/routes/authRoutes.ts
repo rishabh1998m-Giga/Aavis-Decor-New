@@ -11,11 +11,15 @@ import { getAuthFromRequest } from "../plugins/requestAuth.js";
 const BCRYPT_ROUNDS = 10;
 
 export async function registerAuthRoutes(app: FastifyInstance) {
+  const cookieSecure = process.env.COOKIE_SECURE === "true";
+  // Cross-origin deployments (frontend + API on different domains) require
+  // SameSite=None; Secure. Set COOKIE_SAMESITE=none in that case.
+  const cookieSameSite = (process.env.COOKIE_SAMESITE ?? "lax") as "lax" | "none" | "strict";
   const cookieOpts = () => ({
     path: "/",
     httpOnly: true,
-    secure: process.env.COOKIE_SECURE === "true",
-    sameSite: "lax" as const,
+    secure: cookieSecure,
+    sameSite: cookieSameSite,
     maxAge: 60 * 60 * 24 * 7,
     domain: process.env.COOKIE_DOMAIN || undefined,
   });
@@ -120,8 +124,8 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     reply.clearCookie(COOKIE_NAME, {
       path: "/",
       httpOnly: true,
-      secure: process.env.COOKIE_SECURE === "true",
-      sameSite: "lax" as const,
+      secure: cookieSecure,
+      sameSite: cookieSameSite,
       domain: process.env.COOKIE_DOMAIN || undefined,
     });
     return { ok: true };
