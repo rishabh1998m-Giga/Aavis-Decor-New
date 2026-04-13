@@ -6,7 +6,7 @@ import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiJson, friendlyError } from "@/lib/api";
 import { formatPrice } from "@/lib/formatters";
-import { openRazorpay } from "@/lib/razorpay";
+import { initiatePayment } from "@/lib/payment/checkout";
 import { addressSchema, type AddressFormValues, indianStates } from "@/lib/validators";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -153,41 +153,26 @@ const Checkout = () => {
           }),
         });
 
-        let payment;
-        try {
-          payment = await openRazorpay({
-            key: rzpOrder.key_id,
-            amount: rzpOrder.amount_paise,
-            currency: rzpOrder.currency,
-            name: "Aavis Decor",
-            description: `Order ${rzpOrder.order_number}`,
-            order_id: rzpOrder.razorpay_order_id,
-            prefill: {
-              name: addressData.fullName,
-              contact: addressData.phone,
-            },
-            theme: { color: "#1a1a1a" },
-          });
-        } catch (modalErr) {
-          // User dismissed / payment failed — order stays in pending_payment
-          // state on the server and can be retried or cancelled by admin.
-          if (modalErr instanceof Error && modalErr.message === "Payment cancelled") {
-            toast({ title: "Payment cancelled", description: "Your order was not placed." });
-            return;
-          }
-          throw modalErr;
+        const paymentSuccess = await initiatePayment(
+          rzpOrder.amount_paise / 100,
+          rzpOrder.order_number,
+          addressData.fullName
+        );
+        
+        if (!paymentSuccess) {
+          toast({ title: "Payment failed", description: "Please try again." });
+          return;
         }
 
         const data = await apiJson<{
           orderId: string;
           orderNumber: string;
           totalAmount: number;
-        }>("/api/checkout/razorpay/verify", {
+        }>("/api/orders/confirm", {
           method: "POST",
           body: JSON.stringify({
-            razorpay_payment_id: payment.razorpay_payment_id,
-            razorpay_order_id: payment.razorpay_order_id,
-            razorpay_signature: payment.razorpay_signature,
+            orderId: rzpOrder.db_order_id,
+            paymentId: "DUMMY_PAYMENT_ID", // Will be replaced after actual payment
           }),
         });
 
