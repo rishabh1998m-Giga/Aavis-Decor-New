@@ -15,7 +15,43 @@ type CartItemInput = {
   productId: string;
   quantity: number;
   customCurtainSize?: string;
+  sku?: string;
 };
+
+/**
+ * If a variantId stored in the customer's cart is stale (e.g. product was
+ * re-imported and got a new nanoid), fall back to looking the variant up by
+ * SKU so the order can still be placed without forcing a cart refresh.
+ */
+async function resolveCartItems(items: CartItemInput[]): Promise<CartItemInput[]> {
+  if (!items.length) return items;
+
+  const variantIds = items.map((i) => i.variantId);
+  const found = await db
+    .select({ id: schema.productVariants.id })
+    .from(schema.productVariants)
+    .where(inArray(schema.productVariants.id, variantIds));
+
+  const foundIds = new Set(found.map((v) => v.id));
+  const stale = items.filter((i) => !foundIds.has(i.variantId));
+  if (!stale.length) return items;
+
+  const staleSkus = stale.map((i) => i.sku).filter((s): s is string => Boolean(s));
+  if (!staleSkus.length) return items;
+
+  const bySkuRows = await db
+    .select({ id: schema.productVariants.id, sku: schema.productVariants.sku })
+    .from(schema.productVariants)
+    .where(inArray(schema.productVariants.sku, staleSkus));
+
+  const skuToId = new Map(bySkuRows.map((v) => [v.sku, v.id]));
+
+  return items.map((item) => {
+    if (foundIds.has(item.variantId)) return item;
+    const resolvedId = item.sku ? skuToId.get(item.sku) : undefined;
+    return resolvedId ? { ...item, variantId: resolvedId } : item;
+  });
+}
 
 /** Push a freshly created order to Shiprocket (fire-and-forget). */
 async function triggerShiprocket(orderId: string): Promise<void> {
@@ -152,8 +188,9 @@ export async function registerCheckoutRoutes(app: FastifyInstance) {
         return reply.status(422).send({ error: preflight });
       }
 
+      const resolvedItems = await resolveCartItems(body.items || []);
       const result = await createOrderService(db, auth.sub, {
-        items: body.items || [],
+        items: resolvedItems,
         shippingAddress: body.shippingAddress || {},
         paymentMethod: body.paymentMethod || "cod",
         discountCode: body.discountCode,
@@ -201,14 +238,17 @@ export async function registerCheckoutRoutes(app: FastifyInstance) {
         discountCode?: string;
       };
 
-      const items = body.items || [];
-      if (!items.length) return reply.status(400).send({ error: "Cart is empty" });
+      const rawItems = body.items || [];
+      if (!rawItems.length) return reply.status(400).send({ error: "Cart is empty" });
 
       const addr = (body.shippingAddress || {}) as Record<string, string>;
       const preflight = await checkPincodeServiceable(addr.pincode, "upi");
       if (preflight) {
         return reply.status(422).send({ error: preflight });
       }
+
+      // Resolve any stale variantIds via SKU fallback before touching Razorpay or DB.
+      const items = await resolveCartItems(rawItems);
 
       // Create the Razorpay order first — if this fails we haven't touched DB.
       // We don't yet know the final amount (it's computed inside createOrderService),

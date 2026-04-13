@@ -130,6 +130,7 @@ const Checkout = () => {
       variantId: i.variantId,
       productId: i.productId,
       quantity: i.quantity,
+      sku: i.sku,
       ...(i.customCurtainSize?.trim()
         ? { customCurtainSize: i.customCurtainSize.trim().slice(0, 200) }
         : {}),

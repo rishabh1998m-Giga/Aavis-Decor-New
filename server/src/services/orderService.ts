@@ -61,6 +61,7 @@ type OrderItemInput = {
   productId: string;
   quantity: number;
   customCurtainSize?: string;
+  sku?: string;
 };
 
 export async function createOrderService(
