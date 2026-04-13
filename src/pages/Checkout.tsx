@@ -153,7 +153,7 @@ const Checkout = () => {
           }),
         });
 
-        const payment = await initiatePayment({
+        const paidOrder = await initiatePayment({
           amountPaise: rzpOrder.amount_paise,
           currency: rzpOrder.currency,
           razorpayOrderId: rzpOrder.razorpay_order_id,
@@ -162,26 +162,14 @@ const Checkout = () => {
           customerName: addressData.fullName,
         });
 
-        if (!payment) {
+        if (!paidOrder) {
           toast({ title: "Payment failed", description: "Please try again." });
           return;
         }
 
-        const data = await apiJson<{
-          orderId: string;
-          orderNumber: string;
-          totalAmount: number;
-        }>("/api/orders/confirm", {
-          method: "POST",
-          body: JSON.stringify({
-            orderId: rzpOrder.db_order_id,
-            paymentId: payment.razorpay_payment_id,
-          }),
-        });
-
         clearCart();
-        toast({ title: "Payment successful!", description: `Order #${data.orderNumber}` });
-        navigate(`/order-confirmation/${data.orderNumber}`);
+        toast({ title: "Payment successful!", description: `Order #${paidOrder.orderNumber}` });
+        navigate(`/order-confirmation/${paidOrder.orderNumber}`);
       } else {
         const data = await apiJson<{
           orderId: string;

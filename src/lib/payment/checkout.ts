@@ -11,7 +11,7 @@ interface InitiatePaymentParams {
 
 export async function initiatePayment(
   params: InitiatePaymentParams
-): Promise<RazorpaySuccessPayload | null> {
+): Promise<VerifyPaymentResponse | null> {
   try {
     const payment = await openRazorpay({
       key: params.razorpayKeyId,
@@ -34,27 +34,38 @@ export async function initiatePayment(
       payment.razorpay_signature
     );
 
-    if (!verification.success) {
-      return null;
-    }
-
-    return payment;
+    return verification;
   } catch (error) {
     console.error('Payment initiation failed:', error);
     return null;
   }
 }
 
+interface VerifyPaymentResponse {
+  orderId: string;
+  orderNumber: string;
+  totalAmount: number;
+}
+
 async function verifyPaymentSignature(
   orderId: string,
   paymentId: string,
   signature: string
-): Promise<{ success: boolean }> {
-  const response = await fetch('/api/payments/verify', {
+): Promise<VerifyPaymentResponse> {
+  const response = await fetch('/api/checkout/razorpay/verify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ orderId, paymentId, signature })
+    body: JSON.stringify({
+      razorpay_order_id: orderId,
+      razorpay_payment_id: paymentId,
+      razorpay_signature: signature,
+    }),
   });
-  
-  return response.json();
+
+  if (!response.ok) {
+    const data = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error || 'Payment verification failed');
+  }
+
+  return response.json() as Promise<VerifyPaymentResponse>;
 }
