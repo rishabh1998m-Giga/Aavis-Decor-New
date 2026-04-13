@@ -14,13 +14,21 @@
  *   EXCEL_PATH=/path/to/file.xlsx node scripts/import-excel-catalog.mjs
  */
 
+import crypto from "crypto";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 import postgres from "postgres";
-import { nanoid } from "nanoid";
 import XLSX from "xlsx";
+
+/** Same ID generator used by generate-catalog-json.mjs so IDs stay in sync. */
+function sha(str) {
+  return crypto.createHash("sha256").update(String(str)).digest("base64url");
+}
+function makeId(prefix, key) {
+  return `${prefix}_${sha(key).slice(0, 18)}`;
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_ROOT = path.resolve(__dirname, "..");
@@ -264,7 +272,7 @@ async function upsertProduct(sql, group, categoryByKey, now, productIndex) {
     return { productId, created: 0, updated: 1 };
   }
 
-  const productId = nanoid();
+  const productId = makeId("prod", group.slug);
   await sql`
     INSERT INTO products (
       id, category_id, name, slug, description, short_description, design_name,
@@ -295,7 +303,7 @@ async function upsertProduct(sql, group, categoryByKey, now, productIndex) {
   return { productId, created: 1, updated: 0 };
 }
 
-async function upsertVariants(sql, productId, variants, now) {
+async function upsertVariants(sql, productId, productSlug, variants, now) {
   const existing = await sql`
     SELECT id, sku, color, size
     FROM product_variants
@@ -332,7 +340,7 @@ async function upsertVariants(sql, productId, variants, now) {
         WHERE id = ${existingId}
       `;
     } else {
-      const id = nanoid();
+      const id = makeId("var", `${productSlug}|${v.sku}`);
       keep.push(id);
       await sql`
         INSERT INTO product_variants (
@@ -383,10 +391,17 @@ async function replaceProductImages(sql, productId, productName, imageUrls, now)
 }
 
 async function main() {
+  const clean = process.argv.includes("--clean");
   const sql = postgres(process.env.DATABASE_URL, { max: 1 });
   const now = new Date().toISOString();
 
   try {
+    if (clean) {
+      console.log("--clean: deleting all products, variants and images...");
+      await sql`DELETE FROM products`;
+      console.log("Deleted.");
+    }
+
     const wb = XLSX.readFile(excelPath);
     const sheetName = wb.SheetNames.find((n) => /product/i.test(n)) || wb.SheetNames[0];
     const rawRows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
@@ -414,7 +429,7 @@ async function main() {
       created += upsert.created;
       updated += upsert.updated;
 
-      await upsertVariants(sql, upsert.productId, group.variants, now);
+      await upsertVariants(sql, upsert.productId, group.slug, group.variants, now);
       importedVariants += group.variants.length;
       await replaceProductImages(sql, upsert.productId, group.name, group.imageUrls, now);
     }
