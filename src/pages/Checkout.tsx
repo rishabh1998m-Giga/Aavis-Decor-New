@@ -18,9 +18,8 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import { ChevronRight, Loader2, CreditCard, Banknote, CheckCircle, Tag, X, ChevronUp } from "lucide-react";
+
+import { ChevronRight, Loader2, CreditCard, CheckCircle, Tag, X, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +31,7 @@ const Checkout = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState<Step>("address");
-  const [paymentMethod, setPaymentMethod] = useState("cod");
+  const [paymentMethod, setPaymentMethod] = useState("upi");
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [addressData, setAddressData] = useState<AddressFormValues | null>(null);
   const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false);
@@ -48,10 +47,9 @@ const Checkout = () => {
   const [discountError, setDiscountError] = useState("");
 
   const shippingCost = subtotal >= 999 ? 0 : 99;
-  const codFee = paymentMethod === "cod" ? 49 : 0;
   const discountAmount = appliedDiscount?.amount || 0;
   const gstAmount = embeddedGstTotal;
-  const total = subtotal - discountAmount + shippingCost + codFee;
+  const total = subtotal - discountAmount + shippingCost;
 
   const form = useForm<AddressFormValues>({
     resolver: zodResolver(addressSchema),
@@ -273,7 +271,6 @@ const Checkout = () => {
         <div className="flex justify-between"><span className="text-foreground/70">Subtotal</span><span>{formatPrice(subtotal)}</span></div>
         <div className="flex justify-between"><span className="text-foreground/70">Shipping</span><span>{shippingCost === 0 ? <span className="text-green-600">FREE</span> : formatPrice(shippingCost)}</span></div>
         <div className="flex justify-between"><span className="text-foreground/70">GST (included)</span><span>{formatPrice(gstAmount)}</span></div>
-        {codFee > 0 && <div className="flex justify-between"><span className="text-foreground/70">COD Fee</span><span>{formatPrice(codFee)}</span></div>}
         {discountAmount > 0 && (
           <div className="flex justify-between text-green-600">
             <span>Discount ({appliedDiscount?.code})</span>
@@ -328,7 +325,7 @@ const Checkout = () => {
 
   return (
     <StoreLayout>
-      <PageMeta title="Checkout" description="Complete your Aavis Decor order. Secure checkout with COD or UPI." canonical="/checkout" noIndex />
+      <PageMeta title="Checkout" description="Complete your Aavis Decor order. Secure checkout via Razorpay." canonical="/checkout" noIndex />
       <div className="pb-28 lg:pb-20">
         <div className="container max-w-4xl">
           {/* Desktop step indicator */}
@@ -461,32 +458,13 @@ const Checkout = () => {
               {currentStep === "payment" && (
                 <div>
                   <h2 className="font-display text-xl mb-6">Payment Method</h2>
-                  <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod} className="space-y-3">
-                    <div className={cn("flex items-center gap-4 p-4 border rounded-md cursor-pointer", paymentMethod === "cod" ? "border-foreground" : "border-border/50")}>
-                      <RadioGroupItem value="cod" id="cod" />
-                      <Label htmlFor="cod" className="cursor-pointer flex-1">
-                        <div className="flex items-center gap-3">
-                          <Banknote className="h-5 w-5 text-foreground/60" aria-hidden />
-                          <div>
-                            <p className="font-medium text-sm">Cash on Delivery</p>
-                            <p className="text-xs text-foreground/50">Pay when your order arrives (+₹49 COD fee)</p>
-                          </div>
-                        </div>
-                      </Label>
+                  <div className="flex items-center gap-4 p-4 border border-foreground rounded-md">
+                    <CreditCard className="h-5 w-5 text-foreground/60" aria-hidden />
+                    <div>
+                      <p className="font-medium text-sm">UPI / Card / Net Banking</p>
+                      <p className="text-xs text-foreground/50">Pay securely via Razorpay</p>
                     </div>
-                    <div className={cn("flex items-center gap-4 p-4 border rounded-md cursor-pointer", paymentMethod === "upi" ? "border-foreground" : "border-border/50")}>
-                      <RadioGroupItem value="upi" id="upi" />
-                      <Label htmlFor="upi" className="cursor-pointer flex-1">
-                        <div className="flex items-center gap-3">
-                          <CreditCard className="h-5 w-5 text-foreground/60" aria-hidden />
-                          <div>
-                            <p className="font-medium text-sm">UPI / Card / Net Banking</p>
-                            <p className="text-xs text-foreground/50">Pay securely via Razorpay</p>
-                          </div>
-                        </div>
-                      </Label>
-                    </div>
-                  </RadioGroup>
+                  </div>
                   <div className="flex gap-4 mt-8">
                     <Button variant="outline" onClick={() => setCurrentStep("address")} className="flex-1 h-12 text-xs tracking-widest">
                       BACK
@@ -517,7 +495,7 @@ const Checkout = () => {
                       <h3 className="text-xs tracking-widest text-foreground/70 mb-2">PAYMENT METHOD</h3>
                       <button onClick={() => setCurrentStep("payment")} className="text-xs underline text-foreground/60">Edit</button>
                     </div>
-                    <p className="text-sm">{paymentMethod === "cod" ? "Cash on Delivery" : "UPI / Card / Net Banking"}</p>
+                    <p className="text-sm">UPI / Card / Net Banking</p>
                   </div>
                   <div className="border border-border/30 rounded-md p-4 mb-6">
                     <h3 className="text-xs tracking-widest text-foreground/70 mb-4">ORDER ITEMS ({items.length})</h3>
@@ -540,9 +518,9 @@ const Checkout = () => {
                     className="w-full h-12 bg-foreground text-background hover:bg-foreground/90 text-xs tracking-widest"
                   >
                     {isPlacingOrder ? (
-                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> {paymentMethod === "upi" ? "OPENING PAYMENT..." : "PLACING ORDER..."}</>
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> OPENING PAYMENT...</>
                     ) : (
-                      <><CheckCircle className="mr-2 h-4 w-4" aria-hidden /> {paymentMethod === "upi" ? "PAY NOW" : "PLACE ORDER"} — {formatPrice(total)}</>
+                      <><CheckCircle className="mr-2 h-4 w-4" aria-hidden /> PAY NOW — {formatPrice(total)}</>
                     )}
                   </Button>
                 </div>
@@ -589,7 +567,7 @@ const Checkout = () => {
           <div className="bg-background border border-border/50 rounded-md px-6 py-4 shadow-lg flex items-center gap-3">
             <Loader2 className="h-5 w-5 animate-spin text-foreground" aria-hidden />
             <p className="text-sm">
-              {paymentMethod === "upi" ? "Connecting to Razorpay…" : "Placing your order…"}
+              Connecting to Razorpay…
             </p>
           </div>
         </div>
