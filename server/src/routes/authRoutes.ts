@@ -17,6 +17,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     secure: process.env.COOKIE_SECURE === "true",
     sameSite: "lax" as const,
     maxAge: 60 * 60 * 24 * 7,
+    domain: process.env.COOKIE_DOMAIN || undefined,
   });
 
   app.post("/api/auth/register", async (req, reply) => {
@@ -116,7 +117,13 @@ export async function registerAuthRoutes(app: FastifyInstance) {
   });
 
   app.post("/api/auth/logout", async (_req, reply) => {
-    reply.clearCookie(COOKIE_NAME, { path: "/" });
+    reply.clearCookie(COOKIE_NAME, {
+      path: "/",
+      httpOnly: true,
+      secure: process.env.COOKIE_SECURE === "true",
+      sameSite: "lax" as const,
+      domain: process.env.COOKIE_DOMAIN || undefined,
+    });
     return { ok: true };
   });
 

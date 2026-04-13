@@ -116,7 +116,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       // Fallback: server didn't include user in body — confirm session via /me.
       const ok = await refreshMe();
-      if (!ok) return { error: new Error("Signed in but session could not be confirmed. Please try again.") };
+      if (!ok) return { error: new Error("Login succeeded but your session could not be loaded. Please refresh the page and try again.") };
       return { error: null };
     } catch (err) {
       return { error: err instanceof Error ? err : new Error(String(err)) };

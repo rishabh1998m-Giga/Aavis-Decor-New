@@ -19,15 +19,21 @@ import { registerShiprocketWebhookRoutes } from "./routes/shiprocketWebhookRoute
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 async function main() {
-  if (!process.env.DATABASE_URL) {
-    throw new Error("DATABASE_URL is required");
-  }
+  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required");
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16)
+    throw new Error("JWT_SECRET must be set and at least 16 characters");
+  if (!process.env.COOKIE_SECRET && !process.env.JWT_SECRET)
+    throw new Error("COOKIE_SECRET (or JWT_SECRET fallback) is required");
 
   const app = Fastify({ logger: true });
 
-  const origins = process.env.FRONTEND_ORIGIN
-    ? process.env.FRONTEND_ORIGIN.split(",").map((s) => s.trim())
-    : true;
+  // In production FRONTEND_ORIGIN must be set (wildcard + credentials is rejected by browsers).
+  const rawOrigin = process.env.FRONTEND_ORIGIN;
+  const origins: string[] | boolean = rawOrigin
+    ? rawOrigin.split(",").map((s) => s.trim())
+    : process.env.NODE_ENV === "production"
+    ? (() => { throw new Error("FRONTEND_ORIGIN is required in production"); })()
+    : ["http://localhost:8080", "http://localhost:3000"];
 
   await app.register(cors, {
     origin: origins,
