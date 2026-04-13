@@ -1,4 +1,5 @@
 import { openRazorpay, type RazorpaySuccessPayload } from '@/lib/razorpay';
+import { apiUrl } from '@/lib/api';
 
 interface InitiatePaymentParams {
   amountPaise: number;
@@ -52,8 +53,9 @@ async function verifyPaymentSignature(
   paymentId: string,
   signature: string
 ): Promise<VerifyPaymentResponse> {
-  const response = await fetch('/api/checkout/razorpay/verify', {
+  const response = await fetch(apiUrl('/api/checkout/razorpay/verify'), {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       razorpay_order_id: orderId,

@@ -288,6 +288,26 @@ export async function registerCheckoutRoutes(app: FastifyInstance) {
     }
   });
 
+  app.post("/api/checkout/validate-cart", async (req, reply) => {
+    try {
+      const body = req.body as { items?: { variantId: string }[] };
+      const items = body.items || [];
+      if (!items.length) return { invalidVariantIds: [] };
+
+      const variantIds = items.map((i) => i.variantId).filter(Boolean);
+      const found = await db
+        .select({ id: schema.productVariants.id })
+        .from(schema.productVariants)
+        .where(inArray(schema.productVariants.id, variantIds));
+
+      const foundIds = new Set(found.map((r) => r.id));
+      const invalidVariantIds = variantIds.filter((id) => !foundIds.has(id));
+      return { invalidVariantIds };
+    } catch (e) {
+      return sendError(reply, e);
+    }
+  });
+
   /**
    * Razorpay verify: promotes a pre-created pending_payment order to paid.
    * Does NOT create a new order — that already happened in create-order.
