@@ -363,9 +363,6 @@ export async function registerCheckoutRoutes(app: FastifyInstance) {
   app.post("/api/checkout/razorpay/verify", async (req, reply) => {
     try {
       const auth = await getAuthFromRequest(req);
-      if (!auth) {
-        return reply.status(401).send({ error: "Sign in required" });
-      }
 
       const body = req.body as {
         razorpay_payment_id: string;
@@ -397,7 +394,8 @@ export async function registerCheckoutRoutes(app: FastifyInstance) {
       }
 
       const order = rows[0];
-      if (order.userId !== auth.sub) {
+      // Ownership check: skip for guest orders (userId null); signature already proves legitimacy
+      if (order.userId && auth?.sub && order.userId !== auth.sub) {
         return reply.status(403).send({ error: "Order does not belong to you" });
       }
 
