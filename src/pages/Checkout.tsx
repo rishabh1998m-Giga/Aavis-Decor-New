@@ -4,7 +4,7 @@ import StoreLayout from "@/components/layout/StoreLayout";
 import PageMeta from "@/components/seo/PageMeta";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiJson, friendlyError } from "@/lib/api";
+import { apiJson, apiUrl, friendlyError } from "@/lib/api";
 import { formatPrice } from "@/lib/formatters";
 import { initiatePayment } from "@/lib/payment/checkout";
 import { addressSchema, type AddressFormValues, indianStates } from "@/lib/validators";
@@ -49,7 +49,7 @@ const Checkout = () => {
 
   const [shippingConfig, setShippingConfig] = useState({ flatRate: 99, freeThreshold: 999, codFee: 49 });
   useEffect(() => {
-    fetch("/api/shipping-config")
+    fetch(apiUrl("/api/shipping-config"))
       .then((r) => r.json())
       .then((d) => setShippingConfig({ flatRate: d.flatRate ?? 99, freeThreshold: d.freeShippingThreshold ?? 999, codFee: d.codFee ?? 49 }))
       .catch(() => {});
