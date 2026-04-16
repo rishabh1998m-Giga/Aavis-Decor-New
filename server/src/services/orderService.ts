@@ -66,7 +66,7 @@ type OrderItemInput = {
 
 export async function createOrderService(
   db: Db,
-  userId: string,
+  userId: string | null,
   body: {
     items: OrderItemInput[];
     shippingAddress: Record<string, unknown>;

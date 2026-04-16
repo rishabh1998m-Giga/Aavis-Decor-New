@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { getCurtainType, lookupCurtainPrice, parseSizeFt } from "@/lib/curtainPricing";
+import { getCurtainType, lookupCurtainPrice, parseSizeFt, CURTAIN_PRICE_TABLE } from "@/lib/curtainPricing";
 import StoreLayout from "@/components/layout/StoreLayout";
 import ImageGallery from "@/components/products/ImageGallery";
 import VariantSelector from "@/components/products/VariantSelector";
@@ -36,6 +36,22 @@ const Product = () => {
   const [derivedCurtainPrice, setDerivedCurtainPrice] = useState<{ price: number; exactMatch: boolean } | null>(null);
 
   const isCurtainProduct = product?.category?.slug === "curtains";
+
+  const sizePriceMap = useMemo(() => {
+    if (!isCurtainProduct || !product) return undefined;
+    const type = getCurtainType({ name: product.name, tags: product.tags });
+    if (!type) return undefined;
+    const map: Record<string, number> = {};
+    const sizeLabels = [...new Set(product.variants.map((v) => v.size).filter(Boolean))] as string[];
+    for (const label of sizeLabels) {
+      const match = label.match(/(\d+(?:\.\d+)?)\s*(?:feet?|ft)/i) || label.match(/(\d+(?:\.\d+)?)/);
+      if (!match) continue;
+      const sizeFt = parseFloat(match[1]);
+      const row = CURTAIN_PRICE_TABLE.find((r) => r.size === sizeFt);
+      if (row) map[label] = row[type];
+    }
+    return Object.keys(map).length > 0 ? map : undefined;
+  }, [isCurtainProduct, product]);
 
   useEffect(() => {
     if (!product?.variants.length) return;
@@ -241,7 +257,7 @@ const Product = () => {
 
               {product.variants.length > 0 && (
                 <div className="mb-6">
-                  <VariantSelector variants={product.variants} selectedVariant={selectedVariant} onSelect={setSelectedVariant} />
+                  <VariantSelector variants={product.variants} selectedVariant={selectedVariant} onSelect={setSelectedVariant} sizePriceMap={sizePriceMap} />
                 </div>
               )}
 

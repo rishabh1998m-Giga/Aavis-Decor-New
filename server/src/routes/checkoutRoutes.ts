@@ -172,15 +172,19 @@ export async function registerCheckoutRoutes(app: FastifyInstance) {
   app.post("/api/checkout/orders", async (req, reply) => {
     try {
       const auth = await getAuthFromRequest(req);
-      if (!auth) {
-        return reply.status(401).send({ error: "You must be signed in to place an order" });
-      }
       const body = req.body as {
         items?: CartItemInput[];
         shippingAddress?: Record<string, unknown>;
         paymentMethod?: string;
         discountCode?: string;
+        guestEmail?: string;
       };
+
+      // Require either a logged-in user or a guest email
+      const userId = auth?.sub ?? null;
+      if (!userId && !body.guestEmail?.trim()) {
+        return reply.status(401).send({ error: "Please provide your email to place an order" });
+      }
 
       const addr = (body.shippingAddress || {}) as Record<string, string>;
       const preflight = await checkPincodeServiceable(addr.pincode, body.paymentMethod || "cod");
@@ -189,7 +193,7 @@ export async function registerCheckoutRoutes(app: FastifyInstance) {
       }
 
       const resolvedItems = await resolveCartItems(body.items || []);
-      const result = await createOrderService(db, auth.sub, {
+      const result = await createOrderService(db, userId, {
         items: resolvedItems,
         shippingAddress: body.shippingAddress || {},
         paymentMethod: body.paymentMethod || "cod",
@@ -228,15 +232,19 @@ export async function registerCheckoutRoutes(app: FastifyInstance) {
   app.post("/api/checkout/razorpay/create-order", async (req, reply) => {
     try {
       const auth = await getAuthFromRequest(req);
-      if (!auth) {
-        return reply.status(401).send({ error: "Sign in required to place an order" });
-      }
 
       const body = req.body as {
         items?: CartItemInput[];
         shippingAddress?: Record<string, unknown>;
         discountCode?: string;
+        guestEmail?: string;
       };
+
+      // Require either a logged-in user or a guest email
+      const userId = auth?.sub ?? null;
+      if (!userId && !body.guestEmail?.trim()) {
+        return reply.status(401).send({ error: "Please provide your email to place an order" });
+      }
 
       const rawItems = body.items || [];
       if (!rawItems.length) return reply.status(400).send({ error: "Cart is empty" });
@@ -299,10 +307,10 @@ export async function registerCheckoutRoutes(app: FastifyInstance) {
       const total = subtotal - discountAmount + shippingAmount;
 
       const receipt = `rzp-${Date.now().toString(36)}`;
-      const rzpOrder = await createRazorpayOrder(total, receipt, { user_id: auth.sub });
+      const rzpOrder = await createRazorpayOrder(total, receipt, { user_id: userId ?? "guest" });
 
       // Now create the DB order with the razorpay_order_id linked.
-      const result = await createOrderService(db, auth.sub, {
+      const result = await createOrderService(db, userId, {
         items,
         shippingAddress: body.shippingAddress || {},
         paymentMethod: "upi",

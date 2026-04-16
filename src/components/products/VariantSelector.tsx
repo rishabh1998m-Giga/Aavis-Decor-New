@@ -7,6 +7,7 @@ interface VariantSelectorProps {
   variants: ProductVariant[];
   selectedVariant: ProductVariant | null;
   onSelect: (variant: ProductVariant) => void;
+  sizePriceMap?: Record<string, number>;
 }
 
 const norm = (s: string | null | undefined) => (s || "").toString().trim().toLowerCase();
@@ -21,7 +22,7 @@ const normSize = (s: string | null | undefined) =>
     .replace(/\s+/g, " ")
     .trim();
 
-const VariantSelector = ({ variants, selectedVariant, onSelect }: VariantSelectorProps) => {
+const VariantSelector = ({ variants, selectedVariant, onSelect, sizePriceMap }: VariantSelectorProps) => {
   /** Dedupe by normalized value so "Light Brown" / "light brown" don't render twice. */
   const colors = useMemo(() => {
     const seen = new Map<string, string>();
@@ -169,14 +170,17 @@ const VariantSelector = ({ variants, selectedVariant, onSelect }: VariantSelecto
                   onClick={() => canSelect && handleSizeSelect(size)}
                   disabled={!canSelect}
                   className={cn(
-                    "min-w-[60px] px-4 py-2.5 text-xs border transition-colors",
+                    "min-w-[60px] px-4 py-2.5 text-xs border transition-colors flex flex-col items-center gap-0.5",
                     norm(selectedSize) === norm(size) || normSize(selectedSize) === normSize(size)
                       ? "bg-foreground text-background border-foreground"
                       : "border-border/50 text-foreground/70 hover:border-foreground",
                     !available && "opacity-40 cursor-not-allowed line-through"
                   )}
                 >
-                  {size}
+                  <span>{size}</span>
+                  {sizePriceMap?.[size] != null && (
+                    <span className="text-[10px] opacity-70">₹{sizePriceMap[size].toLocaleString("en-IN")}</span>
+                  )}
                 </button>
               );
             })}

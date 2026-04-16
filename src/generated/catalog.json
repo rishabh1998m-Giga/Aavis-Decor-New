@@ -33434,6 +33434,53 @@
           "created_at": "2026-03-26T07:01:26.733Z"
         }
       ]
+    },
+    {
+      "id": "prod_test_payment_check_1",
+      "category_id": "cat_aFonXc36bdXOkspmkx",
+      "name": "TEST PRODUCT – Payment & Shipping Check (₹49)",
+      "slug": "test-product-payment-shipping-check",
+      "description": "This is a test product for verifying payment gateway (Razorpay/COD) and Shiprocket order flow. Do not purchase unless you are the store admin running a live test.",
+      "short_description": "Admin test product. Used to verify payment and courier integration on production.",
+      "design_name": null,
+      "base_price": 49,
+      "max_variant_price": 49,
+      "compare_at_price": null,
+      "gst_rate": null,
+      "fabric": null,
+      "dimensions": null,
+      "care_instructions": null,
+      "tags": ["test"],
+      "is_featured": false,
+      "is_active": true,
+      "created_at": "2026-04-16T00:00:00.000Z",
+      "updated_at": "2026-04-16T00:00:00.000Z",
+      "slug_aliases": [],
+      "variants": [
+        {
+          "id": "var_test_payment_check_1",
+          "product_id": "prod_test_payment_check_1",
+          "sku": "TEST_PAYMENT_001",
+          "color": null,
+          "size": null,
+          "price": 49,
+          "compare_at_price": null,
+          "stock_quantity": 999,
+          "is_active": true
+        }
+      ],
+      "images": [
+        {
+          "id": "img_test_payment_check_1",
+          "product_id": "prod_test_payment_check_1",
+          "variant_id": null,
+          "url": "https://placehold.co/600x600/f0f0f0/555555?text=TEST+PRODUCT",
+          "alt_text": "Test product for payment and shipping verification",
+          "is_primary": true,
+          "sort_order": 0,
+          "created_at": "2026-04-16T00:00:00.000Z"
+        }
+      ]
     }
   ]
 }

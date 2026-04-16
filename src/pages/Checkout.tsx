@@ -26,12 +26,13 @@ import { cn } from "@/lib/utils";
 type Step = "address" | "payment" | "review";
 
 const Checkout = () => {
-  const { items, subtotal, clearCart, embeddedGstTotal } = useCart();
+  const { items, subtotal, clearCart } = useCart();
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState<Step>("address");
   const [paymentMethod, setPaymentMethod] = useState("upi");
+  const [guestEmail, setGuestEmail] = useState("");
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [addressData, setAddressData] = useState<AddressFormValues | null>(null);
   const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false);
@@ -48,8 +49,8 @@ const Checkout = () => {
 
   const shippingCost = subtotal >= 999 ? 0 : 99;
   const discountAmount = appliedDiscount?.amount || 0;
-  const gstAmount = embeddedGstTotal;
-  const total = subtotal - discountAmount + shippingCost;
+  const codFee = paymentMethod === "cod" ? 49 : 0;
+  const total = subtotal - discountAmount + shippingCost + codFee;
 
   const form = useForm<AddressFormValues>({
     resolver: zodResolver(addressSchema),
@@ -104,10 +105,10 @@ const Checkout = () => {
 
   const handlePlaceOrder = async () => {
     if (!addressData || items.length === 0) return;
-    if (!user?.id) {
+    if (!user?.id && !guestEmail.trim()) {
       toast({
-        title: "Sign in required",
-        description: "Please sign in to place an order.",
+        title: "Email required",
+        description: "Please enter your email address to place an order.",
         variant: "destructive",
       });
       return;
@@ -149,6 +150,7 @@ const Checkout = () => {
             items: cartItems,
             shippingAddress,
             discountCode: appliedDiscount?.code || undefined,
+            ...(!user?.id && { guestEmail: guestEmail.trim() }),
           }),
         });
 
@@ -182,6 +184,7 @@ const Checkout = () => {
             shippingAddress,
             paymentMethod,
             discountCode: appliedDiscount?.code || undefined,
+            ...(!user?.id && { guestEmail: guestEmail.trim() }),
           }),
         });
 
@@ -228,35 +231,6 @@ const Checkout = () => {
     );
   }
 
-  // Gate on auth BEFORE showing the 3-step flow. Previously we let customers
-  // fill the whole form and only blocked them at "Pay Now" — bad UX.
-  if (!user) {
-    return (
-      <StoreLayout>
-        <PageMeta title="Checkout" description="Sign in to complete your Aavis Decor order." canonical="/checkout" noIndex />
-        <div className="pb-20 min-h-screen">
-          <div className="container max-w-md">
-            <div className="border border-border/30 rounded-md p-8 text-center">
-              <h1 className="font-display text-2xl mb-3">Sign in to continue</h1>
-              <p className="text-sm text-foreground/60 mb-6">
-                You need an account to place an order. Your bag will be kept safe while you sign in.
-              </p>
-              <Button
-                asChild
-                className="w-full h-12 bg-foreground text-background hover:bg-foreground/90 text-xs tracking-widest mb-3"
-              >
-                <Link to="/auth?next=/checkout">SIGN IN OR CREATE ACCOUNT</Link>
-              </Button>
-              <Button asChild variant="outline" className="w-full text-xs tracking-widest">
-                <Link to="/cart">BACK TO BAG</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </StoreLayout>
-    );
-  }
-
   const steps: { key: Step; label: string }[] = [
     { key: "address", label: "Address" },
     { key: "payment", label: "Payment" },
@@ -270,7 +244,9 @@ const Checkout = () => {
       <div className="space-y-2 text-sm">
         <div className="flex justify-between"><span className="text-foreground/70">Subtotal</span><span>{formatPrice(subtotal)}</span></div>
         <div className="flex justify-between"><span className="text-foreground/70">Shipping</span><span>{shippingCost === 0 ? <span className="text-green-600">FREE</span> : formatPrice(shippingCost)}</span></div>
-        <div className="flex justify-between"><span className="text-foreground/70">GST (included)</span><span>{formatPrice(gstAmount)}</span></div>
+        {codFee > 0 && (
+          <div className="flex justify-between"><span className="text-foreground/70">COD Fee</span><span>{formatPrice(codFee)}</span></div>
+        )}
         {discountAmount > 0 && (
           <div className="flex justify-between text-green-600">
             <span>Discount ({appliedDiscount?.code})</span>
@@ -376,9 +352,20 @@ const Checkout = () => {
                 <div>
                   <h2 className="font-display text-xl mb-6">Shipping Address</h2>
                   {!user && (
-                    <p className="text-sm text-foreground/60 mb-6">
-                      <Link to="/auth" className="underline">Sign in</Link> for a faster checkout experience
-                    </p>
+                    <div className="border border-border/30 rounded-md p-4 mb-6 bg-muted/30">
+                      <p className="text-sm text-foreground/70 mb-3">
+                        <Link to="/auth?next=/checkout" className="underline font-medium">Sign in</Link> for a faster checkout, or continue as guest below.
+                      </p>
+                      <label className="text-xs tracking-widest text-foreground/70 block mb-1">EMAIL ADDRESS</label>
+                      <Input
+                        type="email"
+                        value={guestEmail}
+                        onChange={(e) => setGuestEmail(e.target.value)}
+                        placeholder="your@email.com"
+                        className="h-11"
+                        autoComplete="email"
+                      />
+                    </div>
                   )}
                   <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleAddressSubmit)} className="space-y-4">
@@ -458,12 +445,35 @@ const Checkout = () => {
               {currentStep === "payment" && (
                 <div>
                   <h2 className="font-display text-xl mb-6">Payment Method</h2>
-                  <div className="flex items-center gap-4 p-4 border border-foreground rounded-md">
-                    <CreditCard className="h-5 w-5 text-foreground/60" aria-hidden />
-                    <div>
-                      <p className="font-medium text-sm">UPI / Card / Net Banking</p>
-                      <p className="text-xs text-foreground/50">Pay securely via Razorpay</p>
-                    </div>
+                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod("upi")}
+                      className={cn(
+                        "w-full flex items-center gap-4 p-4 border rounded-md text-left transition-colors",
+                        paymentMethod === "upi" ? "border-foreground" : "border-border/50 hover:border-foreground/50"
+                      )}
+                    >
+                      <CreditCard className="h-5 w-5 text-foreground/60 shrink-0" aria-hidden />
+                      <div>
+                        <p className="font-medium text-sm">UPI / Card / Net Banking</p>
+                        <p className="text-xs text-foreground/50">Pay securely via Razorpay</p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod("cod")}
+                      className={cn(
+                        "w-full flex items-center gap-4 p-4 border rounded-md text-left transition-colors",
+                        paymentMethod === "cod" ? "border-foreground" : "border-border/50 hover:border-foreground/50"
+                      )}
+                    >
+                      <span className="text-xl shrink-0" aria-hidden>💵</span>
+                      <div>
+                        <p className="font-medium text-sm">Cash on Delivery</p>
+                        <p className="text-xs text-foreground/50">Pay ₹49 extra at time of delivery</p>
+                      </div>
+                    </button>
                   </div>
                   <div className="flex gap-4 mt-8">
                     <Button variant="outline" onClick={() => setCurrentStep("address")} className="flex-1 h-12 text-xs tracking-widest">
@@ -495,7 +505,9 @@ const Checkout = () => {
                       <h3 className="text-xs tracking-widest text-foreground/70 mb-2">PAYMENT METHOD</h3>
                       <button onClick={() => setCurrentStep("payment")} className="text-xs underline text-foreground/60">Edit</button>
                     </div>
-                    <p className="text-sm">UPI / Card / Net Banking</p>
+                    <p className="text-sm">
+                      {paymentMethod === "cod" ? "Cash on Delivery" : "UPI / Card / Net Banking"}
+                    </p>
                   </div>
                   <div className="border border-border/30 rounded-md p-4 mb-6">
                     <h3 className="text-xs tracking-widest text-foreground/70 mb-4">ORDER ITEMS ({items.length})</h3>
@@ -518,7 +530,9 @@ const Checkout = () => {
                     className="w-full h-12 bg-foreground text-background hover:bg-foreground/90 text-xs tracking-widest"
                   >
                     {isPlacingOrder ? (
-                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> OPENING PAYMENT...</>
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> PLACING ORDER...</>
+                    ) : paymentMethod === "cod" ? (
+                      <><CheckCircle className="mr-2 h-4 w-4" aria-hidden /> PLACE ORDER — {formatPrice(total)}</>
                     ) : (
                       <><CheckCircle className="mr-2 h-4 w-4" aria-hidden /> PAY NOW — {formatPrice(total)}</>
                     )}
@@ -567,7 +581,7 @@ const Checkout = () => {
           <div className="bg-background border border-border/50 rounded-md px-6 py-4 shadow-lg flex items-center gap-3">
             <Loader2 className="h-5 w-5 animate-spin text-foreground" aria-hidden />
             <p className="text-sm">
-              Connecting to Razorpay…
+              {paymentMethod === "cod" ? "Placing your order…" : "Connecting to Razorpay…"}
             </p>
           </div>
         </div>
