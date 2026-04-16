@@ -668,4 +668,20 @@ export async function registerCatalogRoutes(app: FastifyInstance) {
       estimated_days: r.estimatedDays,
     };
   });
+
+  // Public shipping config — used by frontend to calculate order totals
+  app.get("/api/shipping-config", async () => {
+    const rows = await db
+      .select()
+      .from(t.shippingRules)
+      .where(eq(t.shippingRules.isActive, true))
+      .limit(1);
+    const r = rows[0];
+    return {
+      flatRate: r?.flatRate != null ? Number(r.flatRate) : 99,
+      freeShippingThreshold: r?.freeShippingThreshold != null ? Number(r.freeShippingThreshold) : 999,
+      codFee: r?.codFee != null ? Number(r.codFee) : 49,
+      isCodAvailable: r?.isCodAvailable ?? true,
+    };
+  });
 }

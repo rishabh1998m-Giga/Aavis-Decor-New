@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import StoreLayout from "@/components/layout/StoreLayout";
 import PageMeta from "@/components/seo/PageMeta";
@@ -47,9 +47,17 @@ const Checkout = () => {
   const [discountLoading, setDiscountLoading] = useState(false);
   const [discountError, setDiscountError] = useState("");
 
-  const shippingCost = subtotal >= 999 ? 0 : 99;
+  const [shippingConfig, setShippingConfig] = useState({ flatRate: 99, freeThreshold: 999, codFee: 49 });
+  useEffect(() => {
+    fetch("/api/shipping-config")
+      .then((r) => r.json())
+      .then((d) => setShippingConfig({ flatRate: d.flatRate ?? 99, freeThreshold: d.freeShippingThreshold ?? 999, codFee: d.codFee ?? 49 }))
+      .catch(() => {});
+  }, []);
+
+  const shippingCost = subtotal >= shippingConfig.freeThreshold ? 0 : shippingConfig.flatRate;
   const discountAmount = appliedDiscount?.amount || 0;
-  const codFee = paymentMethod === "cod" ? 49 : 0;
+  const codFee = paymentMethod === "cod" ? shippingConfig.codFee : 0;
   const total = subtotal - discountAmount + shippingCost + codFee;
 
   const form = useForm<AddressFormValues>({

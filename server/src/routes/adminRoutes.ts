@@ -477,6 +477,25 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     }));
   });
 
+  inner.post("/shipping-rules", async (req, reply) => {
+    const body = req.body as Record<string, unknown>;
+    const now = new Date().toISOString();
+    const id = (await import("nanoid")).nanoid();
+    await db.insert(t.shippingRules).values({
+      id,
+      name: (body.name as string) || "Default",
+      flatRate: body.flat_rate != null ? String(body.flat_rate) : "99",
+      freeShippingThreshold: body.free_shipping_threshold != null ? String(body.free_shipping_threshold) : "999",
+      codFee: body.cod_fee != null ? String(body.cod_fee) : "49",
+      codMinOrder: body.cod_min_order != null ? String(body.cod_min_order) : null,
+      isCodAvailable: (body.is_cod_available as boolean) ?? true,
+      isActive: (body.is_active as boolean) ?? true,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return { ok: true, id };
+  });
+
   inner.put("/shipping-rules/:id", async (req, reply) => {
     const id = (req.params as { id: string }).id;
     const body = req.body as Record<string, unknown>;
