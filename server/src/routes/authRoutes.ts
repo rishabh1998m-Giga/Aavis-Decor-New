@@ -161,4 +161,24 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       return sendError(reply, e);
     }
   });
+
+  // TEMPORARY: one-time admin promotion endpoint — remove after use
+  app.post("/api/auth/promote-admin", async (req, reply) => {
+    const body = req.body as { secret?: string; email?: string };
+    if (body.secret !== "aavis-promote-2024") {
+      return reply.status(403).send({ error: "Forbidden" });
+    }
+    const email = String(body.email || "").trim().toLowerCase();
+    if (!email) return reply.status(400).send({ error: "email required" });
+    const rows = await db.select().from(schema.users).where(eq(schema.users.email, email)).limit(1);
+    if (!rows.length) return reply.status(404).send({ error: "User not found" });
+    const userId = rows[0].id;
+    const roleRows = await db.select().from(schema.userRoles).where(eq(schema.userRoles.userId, userId)).limit(1);
+    if (roleRows.length) {
+      await db.update(schema.userRoles).set({ role: "admin" }).where(eq(schema.userRoles.userId, userId));
+    } else {
+      await db.insert(schema.userRoles).values({ userId, role: "admin" });
+    }
+    return { ok: true, email, role: "admin" };
+  });
 }
