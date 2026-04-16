@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import StoreLayout from "@/components/layout/StoreLayout";
 import LoginForm from "@/components/auth/LoginForm";
@@ -11,15 +11,20 @@ const Auth = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
 
   useEffect(() => {
     if (!loading && user) {
-      // Honour ?next= (kept same-origin: must start with "/" and not "//").
-      const next = searchParams.get("next");
-      const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+      // 1. ?next= query param (explicit redirect)
+      // 2. location.state.from (set by AuthGuard when redirecting here)
+      // 3. fallback: "/"
+      const nextParam = searchParams.get("next");
+      const fromState = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
+      const candidate = nextParam ?? fromState ?? "/";
+      const safeNext = candidate.startsWith("/") && !candidate.startsWith("//") ? candidate : "/";
       navigate(safeNext, { replace: true });
     }
-  }, [user, loading, navigate, searchParams]);
+  }, [user, loading, navigate, searchParams, location.state]);
 
   return (
     <StoreLayout>
