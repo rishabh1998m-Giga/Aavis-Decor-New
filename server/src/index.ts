@@ -4,6 +4,7 @@ import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
+import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -65,6 +66,21 @@ async function main() {
   await registerShiprocketWebhookRoutes(app);
 
   app.get("/api/health", async () => ({ ok: true }));
+
+  // Serve the React SPA when FRONTEND_DIR is set (production Hostinger mode).
+  // All non-API, non-media, non-file requests fall back to index.html.
+  const frontendDir = process.env.FRONTEND_DIR;
+  if (frontendDir && existsSync(frontendDir)) {
+    await app.register(fastifyStatic, {
+      root: frontendDir,
+      prefix: "/",
+      decorateReply: false,
+    });
+    app.setNotFoundHandler(async (_req, reply) => {
+      return reply.sendFile("index.html", frontendDir);
+    });
+    app.log.info(`Serving React SPA from ${frontendDir}`);
+  }
 
   // Integration presence summary — makes misconfigured envs obvious at boot.
   const rzpKey = process.env.RAZORPAY_KEY_ID || "";
