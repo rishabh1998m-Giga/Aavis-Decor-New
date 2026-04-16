@@ -29,3 +29,4 @@ service-account.json
 .env.local
 .env.production
 scripts/reports/
+server/.env.hostinger
