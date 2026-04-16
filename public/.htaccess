@@ -1,8 +1,7 @@
-<IfModule mod_rewrite.c>
-  RewriteEngine On
-  RewriteBase /
-  RewriteRule ^index\.html$ - [L]
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule . /index.html [L]
-</IfModule>
+# Phusion Passenger — routes all traffic to Node.js 20 (Fastify)
+# Fastify handles /api/* routes and serves the React SPA as fallback
+PassengerEnabled on
+PassengerAppRoot /home/u228387150/domains/aavisdecor.com/nodejs
+PassengerStartupFile server.js
+PassengerAppType node
+PassengerNodejs /opt/alt/alt-nodejs20/root/usr/bin/node
