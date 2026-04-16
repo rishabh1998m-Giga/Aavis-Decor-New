@@ -431,16 +431,29 @@ export const useProduct = (slug: string) => {
     queryFn: async () => {
       const rawProducts = catalog.products as ApiProduct[];
       const row = rawProducts.find((p) => p.is_active !== false && p.slug === slug);
-      if (!row) throw new Error("Product not found");
 
-      const rawCategories = catalog.categories as ApiCategory[];
+      // Product found in static catalog — use it (fast path)
+      if (row) {
+        const rawCategories = catalog.categories as ApiCategory[];
+        const categoriesMap = new Map<string, Category>();
+        rawCategories.forEach((c) => {
+          const mc = mapCategoryFromApi(c);
+          if (mc) categoriesMap.set(c.id, mc);
+        });
+        return mapApiProductToDetails(row, categoriesMap);
+      }
+
+      // Not in static catalog — fall back to live API (admin-added products)
+      const res = await fetch(`/api/products/by-slug/${encodeURIComponent(slug)}`);
+      if (!res.ok) throw new Error("Product not found");
+      const apiRow = await res.json() as ApiProduct & { category?: ApiCategory | null };
+
       const categoriesMap = new Map<string, Category>();
-      rawCategories.forEach((c) => {
-        const mc = mapCategoryFromApi(c);
-        if (mc) categoriesMap.set(c.id, mc);
-      });
-
-      return mapApiProductToDetails(row, categoriesMap);
+      if (apiRow.category) {
+        const mc = mapCategoryFromApi(apiRow.category);
+        if (mc) categoriesMap.set(apiRow.category.id, mc);
+      }
+      return mapApiProductToDetails(apiRow, categoriesMap);
     },
     enabled: !!slug,
   });
