@@ -333,6 +333,13 @@ const AdminOrders = () => {
                         <span className="text-xs text-foreground/70">{String(order.shiprocket_status)}</span>
                       ) : order.shiprocket_order_id ? (
                         <span className="text-xs text-sky-600">On SR</span>
+                      ) : order.shiprocket_last_error ? (
+                        <span
+                          className="text-xs text-rose-600 font-medium"
+                          title={String(order.shiprocket_last_error)}
+                        >
+                          Push failed
+                        </span>
                       ) : (
                         <span className="text-xs text-foreground/30">—</span>
                       )}
@@ -538,14 +545,33 @@ const AdminOrders = () => {
                 </h3>
 
                 {!selectedOrder.shiprocket_order_id && (
-                  <Button
-                    size="sm"
-                    onClick={() => createShipmentMutation.mutate(String(selectedOrder.id))}
-                    disabled={createShipmentMutation.isPending}
-                    className="w-full"
-                  >
-                    {createShipmentMutation.isPending ? "Creating…" : "Push to Shiprocket"}
-                  </Button>
+                  <div className="space-y-2">
+                    {selectedOrder.shiprocket_last_error && (
+                      <div className="text-xs bg-rose-50 border border-rose-200 text-rose-900 rounded p-3">
+                        <p className="font-medium mb-1">Auto-push failed</p>
+                        <p className="text-rose-800/80 break-words">
+                          {String(selectedOrder.shiprocket_last_error)}
+                        </p>
+                        {selectedOrder.shiprocket_last_error_at && (
+                          <p className="text-[10px] text-rose-700/60 mt-1">
+                            {formatDate(String(selectedOrder.shiprocket_last_error_at))}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    <Button
+                      size="sm"
+                      onClick={() => createShipmentMutation.mutate(String(selectedOrder.id))}
+                      disabled={createShipmentMutation.isPending}
+                      className="w-full"
+                    >
+                      {createShipmentMutation.isPending
+                        ? "Creating…"
+                        : selectedOrder.shiprocket_last_error
+                          ? "Retry Push to Shiprocket"
+                          : "Push to Shiprocket"}
+                    </Button>
+                  </div>
                 )}
 
                 {selectedOrder.shiprocket_order_id && !selectedOrder.shiprocket_awb && (

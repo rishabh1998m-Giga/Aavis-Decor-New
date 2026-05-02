@@ -814,6 +814,8 @@ export async function registerAdminRoutes(app: FastifyInstance) {
           shiprocketAwb: result.awb_code || null,
           shiprocketCourierName: result.courier_name || null,
           shiprocketCourierId: result.courier_company_id || null,
+          shiprocketLastError: null,
+          shiprocketLastErrorAt: null,
           status: "confirmed",
           updatedAt: now,
         }).where(eq(t.orders.id, id));
@@ -982,6 +984,8 @@ function firestoreOrderShape(order: typeof t.orders.$inferSelect) {
     shiprocket_label_url: order.shiprocketLabelUrl,
     shiprocket_tracking_events: order.shiprocketTrackingEvents,
     shiprocket_last_synced: order.shiprocketLastSynced,
+    shiprocket_last_error: order.shiprocketLastError,
+    shiprocket_last_error_at: order.shiprocketLastErrorAt,
     razorpay_payment_id: order.razorpayPaymentId || null,
     created_at: order.createdAt,
     updated_at: order.updatedAt,

@@ -40,6 +40,15 @@ const OrderTracking = () => {
       }
     },
     enabled: !!orderNumber,
+    // Poll every 60s while the shipment is still in motion. Webhooks deliver
+    // most updates instantly, but polling is the fallback when a webhook is
+    // dropped or the customer keeps the tab open across a status change.
+    refetchInterval: (q) => {
+      const o = q.state.data as { status?: string } | null | undefined;
+      if (!o) return false;
+      const terminal = ["delivered", "cancelled", "returned"];
+      return terminal.includes(String(o.status || "")) ? false : 60_000;
+    },
   });
 
   const handleSearch = (e: React.FormEvent) => {
