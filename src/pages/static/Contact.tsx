@@ -28,6 +28,22 @@ const Contact = () => {
         title="Contact Us"
         description="Get in touch with Aavis Decor. We'd love to hear from you about our home textiles, orders, or custom requirements."
         canonical="/contact"
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          "name": "Aavis Decor",
+          "url": "https://aavisdecor.com",
+          "logo": "https://aavisdecor.com/favicon.png",
+          "email": "aavishdecor18@gmail.com",
+          "telephone": "+917318447576",
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "Plot No.09 Anand Industrial Society, Near 64 Joganiyo Mata Mandir, Udhna Magdalla Road",
+            "addressLocality": "Surat",
+            "postalCode": "35007",
+            "addressCountry": "IN"
+          }
+        }}
       />
       <div className="pb-20 min-h-screen">
         <div className="container max-w-4xl">
@@ -43,14 +59,18 @@ const Contact = () => {
                 <Mail className="h-5 w-5 text-foreground/60 mt-0.5" />
                 <div>
                   <p className="font-medium text-sm">Email</p>
-                  <p className="text-foreground/60 text-sm">hello@aavisdecor.com</p>
+                  <a href="mailto:aavishdecor18@gmail.com" className="text-foreground/60 text-sm hover:text-foreground transition-colors">
+                    aavishdecor18@gmail.com
+                  </a>
                 </div>
               </div>
               <div className="flex gap-4">
                 <Phone className="h-5 w-5 text-foreground/60 mt-0.5" />
                 <div>
                   <p className="font-medium text-sm">Phone</p>
-                  <p className="text-foreground/60 text-sm">+91 98765 43210</p>
+                  <a href="tel:+917318447576" className="text-foreground/60 text-sm hover:text-foreground transition-colors">
+                    +91 73184 47576
+                  </a>
                 </div>
               </div>
               <div className="flex gap-4">
@@ -58,8 +78,9 @@ const Contact = () => {
                 <div>
                   <p className="font-medium text-sm">Address</p>
                   <p className="text-foreground/60 text-sm">
-                    Aavis Decor Studio<br />
-                    New Delhi, India 110001
+                    Plot No.09 Anand Industrial Society,<br />
+                    Near 64 Joganiyo Mata Mandir,<br />
+                    Udhna Magdalla Road, Surat-35007
                   </p>
                 </div>
               </div>
